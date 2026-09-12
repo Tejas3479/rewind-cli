@@ -218,6 +218,16 @@ export function parseArgs(rawArgs = []) {
     } else if (arg === '--no-color') {
       flags.noColor = true;
       i++;
+    } else if (arg === '--shell' && (command === 'completions' || command === 'hook')) {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--shell" requires a shell name (bash, zsh, powershell, fish).');
+      }
+      flags.shell = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--shell=') && (command === 'completions' || command === 'hook')) {
+      flags.shell = arg.slice('--shell='.length);
+      i++;
     } else if (arg === '--shell') {
       flags.shell = true;
       i++;
@@ -438,16 +448,6 @@ export function parseArgs(rawArgs = []) {
       i++;
     } else if (arg === '--quiet' || arg === '-q') {
       flags.quiet = true;
-      i++;
-    } else if (arg === '--shell') {
-      i++;
-      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
-        throw new InvalidArgumentError('Option "--shell" requires a shell name (bash, zsh, powershell, fish).');
-      }
-      flags.shell = rawArgs[i];
-      i++;
-    } else if (arg.startsWith('--shell=')) {
-      flags.shell = arg.slice('--shell='.length);
       i++;
     } else if (arg.startsWith('-')) {
       throw new InvalidArgumentError(`Unknown option: "${arg}". Run "rewind --help" for usage.`);

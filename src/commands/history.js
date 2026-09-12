@@ -1,5 +1,5 @@
 import { formatJson, formatRelativeTime, formatStatusBadge, visibleLength } from '../formatter.js';
-import { RecoveryStates } from '../storage/state.js';
+
 import { sanitizeForDisplay } from '../sanitizer.js';
 
 /**

@@ -299,7 +299,11 @@ export async function executeAndCapture(commandTokens, options = {}) {
       });
     }
 
+    let isSettled = false;
+
     childProcess.on('error', (err) => {
+      if (isSettled) return;
+      isSettled = true;
       cleanup();
       if (err.code === 'ENOENT') {
         reject(new SpawnError(`Command not found: "${executable}"`, { code: err.code }));
@@ -309,6 +313,8 @@ export async function executeAndCapture(commandTokens, options = {}) {
     });
 
     childProcess.on('close', (exitCode, signal) => {
+      if (isSettled) return;
+      isSettled = true;
       cleanup();
       const endHrTime = process.hrtime.bigint();
       const endTimeIso = new Date().toISOString();

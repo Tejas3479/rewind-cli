@@ -96,6 +96,15 @@ export function acquireJournalLock(lockPath, options = {}) {
         }
       } catch {
         // If lock file is unreadable or malformed, don't crash, just retry
+        try {
+          const lockStat = fs.statSync(lockPath);
+          if (Date.now() - lockStat.mtimeMs > staleAgeMs) {
+            fs.unlinkSync(lockPath);
+            continue;
+          }
+        } catch {
+          // File may have been removed or is completely inaccessible
+        }
       }
 
       // Zero-CPU synchronous sleep before retry with jitter using standard SharedArrayBuffer + Atomics.wait
@@ -429,9 +438,7 @@ export function appendJournalEvent(ledgerDir, eventInput, options = {}) {
 
     // 5. Update local trusted checkpoint
     const currentCheckpoint = readCheckpoint(ledgerDir);
-    const eventCount = currentCheckpoint && typeof currentCheckpoint.eventCount === 'number'
-      ? currentCheckpoint.eventCount + 1
-      : sequence;
+    const eventCount = sequence;
 
     writeCheckpoint(ledgerDir, {
       headSequence: event.sequence,

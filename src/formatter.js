@@ -118,6 +118,7 @@ export function formatRelativeTime(isoString, now = new Date()) {
     if (Number.isNaN(diffMs)) return isoString;
 
     const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 0) return 'in the future';
     if (diffSec < 45) return 'just now';
     if (diffSec < 90) return '1m ago';
 
@@ -242,6 +243,7 @@ export function formatUtc(isoString) {
   if (!isoString) return 'unknown';
   try {
     const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return 'Invalid Date';
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
   } catch {

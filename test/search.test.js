@@ -5,7 +5,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { runCLI } from '../src/cli.js';
 import { scoreRecord, searchRecords, extractTokens } from '../src/storage/search.js';
-import { RecoveryStates } from '../src/storage/state.js';
+import { IncidentStatus, RecoveryAttemptStatus } from '../src/storage/state.js';
 
 function createMockIO({ env = {}, isTTY = false, cwd = process.cwd() } = {}) {
   let stdoutData = '';
@@ -52,7 +52,7 @@ function createSampleRecord(overrides = {}) {
     durationMs: 1000,
     exitCode: 1,
     signal: null,
-    status: RecoveryStates.OBSERVED,
+    status: IncidentStatus.OBSERVED,
     stdout: '',
     stderr: 'ConnectionError: Failed to connect to PostgreSQL database on port 5432: connection refused',
     normalizedError: 'ConnectionError: Failed to connect to PostgreSQL database on port 5432: connection refused',
@@ -84,7 +84,7 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
   });
 
   test('exact fingerprint match scores 1.0', () => {
-    const rec = createSampleRecord({ fingerprint: '83282360259bab81', status: RecoveryStates.VERIFIED });
+    const rec = createSampleRecord({ fingerprint: '83282360259bab81', status: IncidentStatus.RECOVERED });
     const match = scoreRecord('83282360259bab81', rec);
 
     assert.equal(match.score, 1.0);
@@ -93,7 +93,7 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
   });
 
   test('exact fingerprint match on unverified record surfaces as LIKELY, never VERIFIED', () => {
-    const rec = createSampleRecord({ fingerprint: '83282360259bab81', status: RecoveryStates.OBSERVED });
+    const rec = createSampleRecord({ fingerprint: '83282360259bab81', status: IncidentStatus.OBSERVED });
     const match = scoreRecord('83282360259bab81', rec);
 
     assert.equal(match.score, 1.0);

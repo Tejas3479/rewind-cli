@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { MissingArgumentError, CliError, UsageError } from '../errors.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, assertValidIncidentTransition } from '../storage/state.js';
 import { formatJson, formatStatusBadge } from '../formatter.js';
@@ -24,7 +25,7 @@ function observeLocalChanges(rootDir) {
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => line.slice(3).trim())
-      .filter(f => !f.startsWith('.env') && !f.endsWith('.key') && !f.endsWith('.pem') && !f.includes('id_rsa'));
+      .filter(f => !path.basename(f).startsWith('.env') && !f.endsWith('.key') && !f.endsWith('.pem') && !f.includes('id_rsa'));
 
     if (files.length > 0) {
       return {

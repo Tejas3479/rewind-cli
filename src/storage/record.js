@@ -185,7 +185,7 @@ export function normalizeRecordToCurrentSchema(record) {
 
         let attemptStatus = RecoveryAttemptStatus.PROPOSED;
         if (isLast && copy.verification) {
-          const runPassed = copy.status === 'VERIFIED' || copy.status === IncidentStatus.RECOVERED || copy.verification.exitCode === 0;
+          const runPassed = copy.verification.exitCode === 0;
           attemptStatus = runPassed ? RecoveryAttemptStatus.VERIFIED : RecoveryAttemptStatus.FAILED;
 
           runs.push({

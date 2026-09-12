@@ -30,11 +30,11 @@ export function stripMachinePaths(text, rootDir = '') {
     sanitized = sanitized.replaceAll(winRoot, '<WORKSPACE_ROOT>');
   }
 
-  // Replace standard POSIX user home directories: /Users/<user>/... or /home/<user>/...
-  sanitized = sanitized.replace(/(?:\/Users|\/home)\/[a-zA-Z0-9._-]+\//g, '<WORKSPACE_ROOT>/');
+  // Replace standard POSIX user home directories: /Users/<user>/... or \Users\<user>\...
+  sanitized = sanitized.replace(/(?:[/\\]Users|[/\\]home)[/\\][a-zA-Z0-9._-]+[/\\]/g, '<WORKSPACE_ROOT>/');
 
-  // Replace standard Windows user home directories: C:\Users\<user>\...
-  sanitized = sanitized.replace(/[a-zA-Z]:\\Users\\[a-zA-Z0-9._-]+\\/gi, '<WORKSPACE_ROOT>\\');
+  // Replace standard Windows user home directories: C:\Users\<user>\... or C:/Users/<user>/...
+  sanitized = sanitized.replace(/[a-zA-Z]:[/\\]Users[/\\][a-zA-Z0-9._-]+[/\\]/gi, '<WORKSPACE_ROOT>\\');
 
   return sanitized;
 }
@@ -76,7 +76,7 @@ export function sanitizeBundleIncident(record, rootDir = '') {
       stackFrames: (Array.isArray(record.diagnostic.stackFrames) ? record.diagnostic.stackFrames : []).map(f => ({
         ...f,
         file: f.file ? stripMachinePaths(f.file, rootDir) : null,
-        callee: f.callee ? redactSecrets(f.callee) : null
+        function: f.function ? redactSecrets(f.function) : null
       }))
     };
   }

@@ -45,29 +45,7 @@ export const EvidenceQuality = Object.freeze({
   UNVERIFIED: 'UNVERIFIED'        // Fix proposed or marked FIXED without successful verification run
 });
 
-/**
- * 5. Derived Evidence Flags (Dynamically computed from historical evidence)
- */
-export const EvidenceFlags = Object.freeze({
-  STALE: 'STALE',                           // Relevant runtime/config changed since verification
-  CONTRADICTED: 'CONTRADICTED',             // Conflicting verification results under equivalent conditions
-  DIVERGENT_EVIDENCE: 'DIVERGENT_EVIDENCE', // Different verification outcomes under different environments
-  NEGATIVE_MEMORY: 'NEGATIVE_MEMORY'        // Durable record of failed approaches
-});
 
-/**
- * Backward compatibility mapping for legacy code referencing RecoveryStates.
- */
-export const RecoveryStates = Object.freeze({
-  OBSERVED: IncidentStatus.OBSERVED,
-  SUSPECTED: IncidentStatus.OPEN,
-  OPEN: IncidentStatus.OPEN,
-  FIXED: IncidentStatus.OPEN,
-  RECOVERED: IncidentStatus.RECOVERED,
-  VERIFIED: IncidentStatus.RECOVERED,
-  REGRESSED: IncidentStatus.REGRESSED,
-  RESOLVED: IncidentStatus.RESOLVED
-});
 
 /**
  * Valid incident lifecycle state transitions.

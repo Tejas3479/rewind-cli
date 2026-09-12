@@ -7,8 +7,11 @@ export async function initCommand({ context }) {
 
   const ledgerDir = storage.ledgerDir;
   const journalPath = path.join(ledgerDir, 'journal.jsonl');
-  const alreadyInitialized = fs.existsSync(journalPath);
-  
+  // Since storage.init() auto-creates the directory structure, we check for actual events or legacy records
+  const hasEvents = fs.existsSync(journalPath) && fs.statSync(journalPath).size > 0;
+  const hasRecords = fs.existsSync(path.join(ledgerDir, 'records')) && fs.readdirSync(path.join(ledgerDir, 'records')).length > 0;
+  const alreadyInitialized = hasEvents || hasRecords;
+
   const gitignorePath = path.join(cwd, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
     const gitignore = fs.readFileSync(gitignorePath, 'utf8');

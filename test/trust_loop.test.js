@@ -8,7 +8,6 @@ import { StorageEngine } from '../src/storage/store.js';
 import {
   IncidentStatus,
   RecoveryAttemptStatus,
-  RecoveryStates,
   isValidIncidentTransition,
   isValidAttemptTransition,
   isValidTransition
@@ -83,7 +82,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       const inc1 = store.getRecord('1');
       assert.ok(inc1);
       assert.equal(inc1.id, '1');
-      assert.equal(inc1.status, RecoveryStates.OBSERVED);
+      assert.equal(inc1.status, IncidentStatus.OBSERVED);
       assert.ok(inc1.fingerprint);
 
       // Step 2: Record suspected cause -> transitions to OPEN/SUSPECTED
@@ -93,7 +92,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
 
       store.rebuildIndex();
       const inc1Suspected = store.getRecord('1');
-      assert.equal(inc1Suspected.status, RecoveryStates.SUSPECTED);
+      assert.equal(inc1Suspected.status, IncidentStatus.OPEN);
       assert.equal(inc1Suspected.recoveryAttempts.length, 1);
       assert.equal(inc1Suspected.recoveryAttempts[0].cause, 'Token validation failed');
 
@@ -112,7 +111,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
 
       store.rebuildIndex();
       const inc1Fixed = store.getRecord('1');
-      assert.equal(inc1Fixed.status, RecoveryStates.FIXED);
+      assert.equal(inc1Fixed.status, IncidentStatus.OPEN);
       assert.equal(inc1Fixed.recoveryAttempts.length, 2);
       assert.equal(inc1Fixed.recoveryAttempts[1].change, 'Added missing token check');
 
@@ -123,7 +122,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
 
       store.rebuildIndex();
       const inc1Verified = store.getRecord('1');
-      assert.equal(inc1Verified.status, RecoveryStates.VERIFIED);
+      assert.equal(inc1Verified.status, IncidentStatus.RECOVERED);
       assert.ok(inc1Verified.verification);
       assert.equal(inc1Verified.verification.exitCode, 0);
 
@@ -136,7 +135,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       const inc2 = store.getRecord('2');
       assert.ok(inc2);
       assert.equal(inc2.id, '2');
-      assert.equal(inc2.status, RecoveryStates.REGRESSED);
+      assert.equal(inc2.status, IncidentStatus.REGRESSED);
       assert.equal(inc2.regressionOf, '1');
       assert.equal(inc2.fingerprint, inc1.fingerprint);
       assert.ok(mock5.getStderr().includes('REGRESSION'));
@@ -177,7 +176,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
 
       const store = new StorageEngine(path.join(tmpDir, '.rewind')).init();
       const record = store.getRecord('1');
-      assert.equal(record.status, RecoveryStates.FIXED); // Did NOT promote to VERIFIED
+      assert.equal(record.status, IncidentStatus.OPEN); // Did NOT promote to VERIFIED
       assert.equal(record.recoveryAttempts[0].status, 'FAILED'); // Preserved in negative memory
       assert.equal(record.verification.exitCode, 44);
     } finally {

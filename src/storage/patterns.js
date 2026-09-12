@@ -230,24 +230,8 @@ export function analyzeFamilyPatterns(fingerprint, records, familyEvents) {
     group.total += 1;
     group.incidents.push(rec.id);
 
-    // Also inspect verification runs recorded under this record
-    if (Array.isArray(rec.recoveryAttempts)) {
-      for (const attempt of rec.recoveryAttempts) {
-        if (Array.isArray(attempt.verificationRuns)) {
-          for (const run of attempt.verificationRuns) {
-            const runCmdId = normalizeCommandIdentity(run.command);
-            if (runCmdId === cmdId) {
-              group.total += 1;
-              if (run.exitCode === 0) {
-                group.passes += 1;
-              } else {
-                group.failures += 1;
-              }
-            }
-          }
-        }
-      }
-    }
+    // Verification runs are explicitly excluded from flakiness scoring
+    // to prevent verification failures from artificially inflating the flakiness heuristic.
   }
 
   let flakyDetected = false;

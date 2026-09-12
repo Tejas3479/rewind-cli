@@ -45,19 +45,19 @@ function backtrackLcs(a, b, matrix) {
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      result.unshift({ type: 'unchanged', value: a[i - 1] });
+      result.push({ type: 'unchanged', value: a[i - 1] });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || matrix[i][j - 1] >= matrix[i - 1][j])) {
-      result.unshift({ type: 'added', value: b[j - 1] });
+      result.push({ type: 'added', value: b[j - 1] });
       j--;
     } else if (i > 0 && (j === 0 || matrix[i][j - 1] < matrix[i - 1][j])) {
-      result.unshift({ type: 'removed', value: a[i - 1] });
+      result.push({ type: 'removed', value: a[i - 1] });
       i--;
     }
   }
 
-  return result;
+  return result.reverse();
 }
 
 /**
@@ -75,6 +75,13 @@ export function diffLines(oldText = "", newText = "") {
 
   const aLines = oldText === '' ? [] : oldText.split('\n');
   const bLines = newText === '' ? [] : newText.split('\n');
+
+  if (aLines.length * bLines.length > 10_000_000) {
+    return [
+      { type: 'removed', value: oldText },
+      { type: 'added', value: newText }
+    ];
+  }
 
   const matrix = computeLcsMatrix(aLines, bLines);
   return backtrackLcs(aLines, bLines, matrix);
@@ -96,6 +103,13 @@ export function diffWords(oldText = "", newText = "") {
   const tokenize = (str) => str.match(/\w+|[^\s\w]+|\s+/g) || [];
   const aWords = tokenize(oldText);
   const bWords = tokenize(newText);
+
+  if (aWords.length * bWords.length > 10_000_000) {
+    return [
+      { type: 'removed', value: oldText },
+      { type: 'added', value: newText }
+    ];
+  }
 
   const matrix = computeLcsMatrix(aWords, bWords);
   return backtrackLcs(aWords, bWords, matrix);

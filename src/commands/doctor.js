@@ -61,7 +61,7 @@ export async function doctorCommand({ context }) {
         postRepairIntegrity: repairResult.postRepairIntegrity || 'UNKNOWN',
         diagnostics: repairResult.diagnostics
       }) + '\n');
-      return repairResult.status === 'REFUSED' ? 1 : 0;
+      return ['REFUSED', 'FAILED', 'ERROR'].includes(repairResult.status) ? 1 : 0;
     }
 
     const title = isDryRun

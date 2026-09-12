@@ -713,7 +713,7 @@ export class StorageEngine {
     }
 
     const currentAttempts = Array.isArray(existing.recoveryAttempts) ? existing.recoveryAttempts : [];
-    const targetAttempt = currentAttempts.find(a => a.id === attemptId);
+    const targetAttempt = currentAttempts.find(a => String(a.id) === String(attemptId));
     if (!targetAttempt) {
       throw new CliError(`Attempt #${attemptId} not found in Incident #${strId}.`);
     }

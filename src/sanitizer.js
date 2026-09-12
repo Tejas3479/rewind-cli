@@ -19,6 +19,7 @@ const AWS_KEY_PATTERN = /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g;
 const SLACK_TOKEN_PATTERN = /\bxox[baprs]-[0-9a-zA-Z-]{15,}\b/g;
 const BEARER_TOKEN_PATTERN = /\bBearer\s+[a-zA-Z0-9_\-\.]{15,}\b/gi;
 const BASIC_AUTH_URL_PATTERN = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^:\s\/@]+:[^@\s\/]+@/gi;
+// Note: We use {4,} here to avoid false positives on legitimate single-character config values like `DEBUG=1`, `VERBOSE=0`
 const KEY_VALUE_SECRET_PATTERN = /\b(password|passwd|secret|api[_-]?key|auth[_-]?token|client[_-]?secret|private[_-]?key)\s*[:=]\s*['"]?([^\s'",;&]{4,})['"]?/gi;
 
 /**
