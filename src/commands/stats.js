@@ -43,9 +43,9 @@ export async function statsCommand({ context }) {
     if (record.recoveryAttempts && record.recoveryAttempts.length > 0) {
       totalRecoveryAttempts += record.recoveryAttempts.length;
 
-      const observedTime = new Date(record.timestamp).getTime();
+      const observedTime = new Date(record.startTime).getTime();
       const firstAttempt = record.recoveryAttempts[0];
-      const attemptTime = new Date(firstAttempt.timestamp).getTime();
+      const attemptTime = new Date(firstAttempt.createdAt).getTime();
       if (!Number.isNaN(observedTime) && !Number.isNaN(attemptTime)) {
         totalRecoveryTimeMs += (attemptTime - observedTime);
         recoveryTimeCount++;

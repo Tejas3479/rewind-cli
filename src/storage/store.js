@@ -433,10 +433,19 @@ export class StorageEngine {
     const projected = projectEventsToRecords(events);
 
     this.index.clear();
+    this.fingerprintIndex.clear();
     this.highestId = 0;
 
     for (const [id, record] of projected.entries()) {
       this.index.set(id, record);
+      
+      if (record.fingerprint) {
+        if (!this.fingerprintIndex.has(record.fingerprint)) {
+          this.fingerprintIndex.set(record.fingerprint, []);
+        }
+        this.fingerprintIndex.get(record.fingerprint).push(record);
+      }
+
       const numId = Number.parseInt(id, 10);
       if (!Number.isNaN(numId) && numId > this.highestId) {
         this.highestId = numId;
@@ -559,6 +568,10 @@ export class StorageEngine {
     const fingerprint = captureResult.fingerprint || computed.fingerprint;
     const normalizedError = captureResult.normalizedError || computed.normalizedError;
 
+    if (captureResult.success) {
+      return null;
+    }
+
     if (!captureResult.success && !initialState) {
       const priorVerified = this.findVerifiedByFingerprint(fingerprint);
       if (priorVerified) {
@@ -572,7 +585,7 @@ export class StorageEngine {
     // Process heavy evidence: save to isolated evidence store and bound output
     const rawStderr = captureResult.stderr || '';
     const rawStdout = captureResult.stdout || '';
-    const fullOutput = rawStderr + (rawStderr && rawStdout ? '\n' : '') + rawStdout;
+    const fullOutput = rawStdout + (rawStdout && rawStderr ? '\n' : '') + rawStderr;
 
     const { evidenceHash, evidenceRef } = saveEvidenceArtifact(this.ledgerDir, fullOutput);
     const boundStderr = boundOutput(rawStderr);

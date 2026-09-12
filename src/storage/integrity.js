@@ -330,13 +330,11 @@ export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalL
   let isTrusted = true;
 
   if (errors.length > 0) {
-    if (checkpointLagging && errors.length === 0) {
-      status = 'CRASH_RECOVERY_PENDING';
-      isTrusted = true;
-    } else {
-      status = 'UNTRUSTED';
-      isTrusted = false;
-    }
+    status = 'UNTRUSTED';
+    isTrusted = false;
+  } else if (checkpointLagging) {
+    status = 'CRASH_RECOVERY_PENDING';
+    isTrusted = true;
   }
 
   const lastEvent = events.length > 0 ? events[events.length - 1] : null;

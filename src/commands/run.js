@@ -65,15 +65,11 @@ export async function runCommand({ context }) {
                 break;
               }
             }
-            if (!verifiedAttempt && prior.recoveryAttempts.length > 0) {
-              verifiedAttempt = prior.recoveryAttempts[prior.recoveryAttempts.length - 1];
-            }
           }
 
-          const alertTitle = s.red(s.bold('[rewind:REGRESSION]'));
-          stderr.write(`\n${alertTitle} Failure matches previously ${s.green('VERIFIED')} Incident #${savedRecord.regressionOf}\n\n`);
-
           if (verifiedAttempt) {
+            const alertTitle = s.red(s.bold('[rewind:REGRESSION]'));
+            stderr.write(`\n${alertTitle} Failure matches previously ${s.green('VERIFIED')} Incident #${savedRecord.regressionOf}\n\n`);
             stderr.write(`${s.bold('HISTORICAL VERIFIED RECOVERY (Exact Match):')}\n`);
             if (verifiedAttempt.cause) stderr.write(`  ${s.dim('Suspected Cause:'.padEnd(20))} ${sanitizeForDisplay(verifiedAttempt.cause)}\n`);
             if (verifiedAttempt.change) stderr.write(`  ${s.dim('Verified Fix:'.padEnd(20))} ${sanitizeForDisplay(verifiedAttempt.change)}\n`);

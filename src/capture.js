@@ -165,11 +165,11 @@ export async function executeAndCapture(commandTokens, options = {}) {
         spawnTarget = commandTokens[0];
         spawnArgs = [];
       } else {
-        spawnTarget = commandTokens.map(t => (/\s/.test(t) && !t.startsWith('"') && !t.startsWith("'")) ? `"${t}"` : t).join(' ');
+        spawnTarget = commandTokens.map(t => (/\s/.test(t) && !t.startsWith('"') && !t.startsWith("'")) ? `"${t.replace(/"/g, '\\"')}"` : t).join(' ');
         spawnArgs = [];
       }
     } else if (args.length > 0 && args.some(a => ['&&', '||', ';', '|', '&', '>', '<'].includes(a))) {
-      spawnTarget = commandTokens.map(t => (/\s/.test(t) && !t.startsWith('"') && !t.startsWith("'")) ? `"${t}"` : t).join(' ');
+      spawnTarget = commandTokens.map(t => (/\s/.test(t) && !t.startsWith('"') && !t.startsWith("'")) ? `"${t.replace(/"/g, '\\"')}"` : t).join(' ');
       spawnArgs = [];
     }
   }

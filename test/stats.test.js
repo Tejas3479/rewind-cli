@@ -36,10 +36,10 @@ describe('rewind stats command', () => {
             {
               status: 'VERIFIED',
               fingerprint: 'A',
-              timestamp: '2023-01-01T00:00:00Z',
+              startTime: '2023-01-01T00:00:00Z',
               recoveryAttempts: [
                 {
-                  timestamp: '2023-01-01T00:00:10Z',
+                  createdAt: '2023-01-01T00:00:10Z',
                   verificationRuns: [
                     { exitCode: 1 },
                     { exitCode: 0 }
@@ -50,7 +50,7 @@ describe('rewind stats command', () => {
             {
               status: 'OPEN',
               fingerprint: 'A',
-              timestamp: '2023-01-01T00:00:00Z'
+              startTime: '2023-01-01T00:00:00Z'
             }
           ]
         })

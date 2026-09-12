@@ -169,8 +169,8 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
       matchType: 'SIMILAR',
       similarity: Number(s.score.toFixed(2)),
       evidenceStrength: s.score >= 0.7 ? 'SUPPORTED' : 'LIMITED',
-      verificationState: s.confidence === 'EXACT_VERIFIED' || s.confidence === 'SIMILAR_VERIFIED' ? 'VERIFIED' : 'UNVERIFIED',
-      matchedTerms: s.matchReasons,
+      verificationState: s.confidence === 'VERIFIED' ? 'VERIFIED' : 'UNVERIFIED',
+      matchedTerms: s.matchedTokens,
       command: s.record.command,
       fullCommand: s.record.fullCommand
     }));
@@ -218,7 +218,7 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
             historicalVerification: {
               status: 'VERIFIED',
               provenance: 'DIRECTLY_VERIFIED',
-              verifiedAt: lastRun?.timestamp || r.updatedAt,
+              verifiedAt: lastRun?.completedAt || r.endTime,
               runsCount: verificationRuns.length,
               lastRunResult: {
                 exitCode: lastRun?.exitCode ?? 0,
@@ -271,20 +271,20 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
     unprovenAssumptions.push('No verified remediation has been established for this failure fingerprint.');
   }
   if (stalenessReport.isStale) {
-    unprovenAssumptions.push(`Environment delta detected since recorded state: ${stalenessReport.reasons.join(', ')}`);
+    unprovenAssumptions.push(`Environment delta detected since recorded state: ${(stalenessReport.flags || []).join(', ')}`);
   }
-  if (conflictReport.hasConflict) {
-    unprovenAssumptions.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflictingIncidents.join(', ')}`);
+  if (conflictReport.hasConflicts) {
+    unprovenAssumptions.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflicts.map(c => c.description).join(', ')}`);
   }
   const warnings = [];
   if (!isLedgerTrusted) {
     warnings.push('Ledger integrity verification failed. Historical records cannot be guaranteed authentic.');
   }
   if (stalenessReport.isStale) {
-    warnings.push(`Environment delta detected since recorded state: ${stalenessReport.reasons.join(', ')}`);
+    warnings.push(`Environment delta detected since recorded state: ${(stalenessReport.flags || []).join(', ')}`);
   }
-  if (conflictReport.hasConflict) {
-    warnings.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflictingIncidents.join(', ')}`);
+  if (conflictReport.hasConflicts) {
+    warnings.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflicts.map(c => c.description).join(', ')}`);
   }
 
   const suggestedActions = [];
@@ -356,12 +356,12 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
       applicability: {
         staleness: {
           isStale: stalenessReport.isStale,
-          reasons: stalenessReport.reasons || []
+          reasons: stalenessReport.flags || []
         },
         conflicts: {
-          hasConflict: conflictReport.hasConflict,
-          status: conflictReport.status,
-          details: conflictReport.details || []
+          hasConflicts: conflictReport.hasConflicts || false,
+          status: conflictReport.classification || 'NONE',
+          details: conflictReport.hasConflicts ? conflictReport.conflicts.map(c => c.description) : []
         }
       },
       unprovenAssumptions

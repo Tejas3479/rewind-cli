@@ -74,6 +74,8 @@ export async function runCLI(
     } catch (storageErr) {
       if (parsedArgs.command === 'run') {
         stderr.write(`\n${styler.dim('[rewind:warning]')} Ledger initialization failed. Recording disabled: ${storageErr.message}\n`);
+      } else if (['help', 'version', 'completions', 'hook', 'mcp'].includes(parsedArgs.command)) {
+        // Safe commands that do not require a working ledger
       } else {
         throw storageErr; // Other commands require a working ledger
       }
