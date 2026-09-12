@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 /**
  * REWIND — Zero-Dependency Deterministic Standalone Bundler & Reproducible Build Engine
- * 
- * Complies with Zero Dependency Hackathon "Reproducible Build (+5)" Bonus Challenge:
- * Builds the standalone distribution artifact twice and verifies byte-identical SHA-256 hashes.
  */
 
 import fs from 'node:fs';

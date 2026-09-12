@@ -1,7 +1,7 @@
 # Reproducible Build Verification & Hashes (`REPRODUCIBLE_BUILD.md`)
 
-> **Zero Dependency Hackathon — Deterministic Reproducible Build**  
-> *“Build your artifact twice and produce byte-identical output. Publish both hashes. Determinism is the discipline that most dependency-heavy stacks quietly lost.”*
+> **Deterministic Reproducible Build**  
+> *"Build your artifact twice and produce byte-identical output. Publish both hashes. Determinism is the discipline that most dependency-heavy stacks quietly lost."*
 
 ---
 
@@ -12,16 +12,16 @@ Every compilation of Rewind's source tree into a standalone distribution artifac
 ```text
 ================================================================================
 ARTIFACT:             dist/rewind.js
-PASS #1 SHA-256:      42b91576a90a5e77b91c40c5504bf7573685b5ed8bdda23d1809a5edba1047b4
-PASS #2 SHA-256:      42b91576a90a5e77b91c40c5504bf7573685b5ed8bdda23d1809a5edba1047b4
-FILE SIZE:            439,644 bytes
+PASS #1 SHA-256:      bcf5f567e6138272e3bb2ae362d93827fe5f62abb46650d81c35c6ec3cc84db6
+PASS #2 SHA-256:      bcf5f567e6138272e3bb2ae362d93827fe5f62abb46650d81c35c6ec3cc84db6
+FILE SIZE:            479,745 bytes
 DETERMINISTIC MATCH:  TRUE (100% Bitwise Parity)
 ================================================================================
 ```
 
 ---
 
-## 2. 60-Second Judge Verification Instructions
+## 2. 60-Second Verification Instructions
 
 You can reproduce and independently verify these hashes with **one single command** without installing any packages:
 

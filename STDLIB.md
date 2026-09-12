@@ -1,6 +1,6 @@
 # Standard Library Replacements & Package Killer Receipts (`STDLIB.md`)
 
-> **Zero Dependency Hackathon Submission — Track A (Developer Tools & CLI)**  
+> **Zero Dependency Architecture**  
 > This document details every third-party package normally installed in this domain alongside the exact Node.js standard library capability Rewind implemented in its place, complete with download metrics and source code references.
 
 ---

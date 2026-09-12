@@ -1,6 +1,6 @@
 # Zero-Dependency Verification Guide (`DEPENDENCY_PROOF.md`)
 
-This guide provides fast, reproducible commands for hackathon judges and evaluators to verify Rewind's **Zero Third-Party Dependency** compliance.
+This guide provides fast, reproducible commands for developers and security auditors to verify Rewind's **Zero Third-Party Dependency** architecture.
 
 ---
 

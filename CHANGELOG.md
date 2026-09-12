@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP Server** (`rewind mcp`): Zero-dependency Model Context Protocol server for AI coding agents. Exposes 5 tools (`rewind_context`, `rewind_search`, `rewind_recover`, `rewind_history`, `rewind_show`) over JSON-RPC 2.0 stdio transport. Compatible with Claude Code, Cursor, Windsurf, and any MCP-compliant client.
 - **History Pagination**: `rewind history` now supports `--offset` for offset-based pagination with informative footer showing current range and next page command.
 - **npm Publish Configuration**: Added `files`, `repository`, `bugs`, `homepage`, and expanded `keywords` to `package.json` for clean npm distribution.
-- `.npmignore` to exclude development, hackathon, and test files from npm tarball.
+- `.npmignore` to exclude development, and test files from npm tarball.
 - `CHANGELOG.md` (this file).
 
 ### Changed
@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release for Zero Dependency Hackathon 2026.
+- Initial release for v1.0.0 Public Release.
 - 17 CLI commands: `run`, `history`, `show`, `recover`, `triage`, `verify`, `search`, `patterns`, `context`, `doctor`, `verify-integrity`, `rebuild`, `hook`, `export-shared`, `import-shared`, `help`, `version`.
 - Append-only cryptographic event journal with SHA-256 chain hashing.
 - Four-layer integrity verification (event hash, chain continuity, checkpoint anchor, projection consistency).
