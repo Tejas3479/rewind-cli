@@ -250,8 +250,18 @@ export async function executeAndCapture(commandTokens, options = {}) {
     if (childProcess.stdout) {
       childProcess.stdout.on('data', (chunk) => {
         if (stdoutBytes < maxBuffer) {
-          stdoutChunks.push(chunk);
-          stdoutBytes += chunk.length;
+          const remaining = maxBuffer - stdoutBytes;
+          if (chunk.length > remaining) {
+            stdoutChunks.push(chunk.subarray(0, remaining));
+            stdoutBytes += remaining;
+            if (!stdoutTruncated) {
+              stdoutTruncated = true;
+              stdoutChunks.push(Buffer.from(`\n[rewind: output truncated after ${maxBuffer} bytes limit]\n`, 'utf8'));
+            }
+          } else {
+            stdoutChunks.push(chunk);
+            stdoutBytes += chunk.length;
+          }
         } else if (!stdoutTruncated) {
           stdoutTruncated = true;
           stdoutChunks.push(Buffer.from(`\n[rewind: output truncated after ${maxBuffer} bytes limit]\n`, 'utf8'));
@@ -266,8 +276,18 @@ export async function executeAndCapture(commandTokens, options = {}) {
     if (childProcess.stderr) {
       childProcess.stderr.on('data', (chunk) => {
         if (stderrBytes < maxBuffer) {
-          stderrChunks.push(chunk);
-          stderrBytes += chunk.length;
+          const remaining = maxBuffer - stderrBytes;
+          if (chunk.length > remaining) {
+            stderrChunks.push(chunk.subarray(0, remaining));
+            stderrBytes += remaining;
+            if (!stderrTruncated) {
+              stderrTruncated = true;
+              stderrChunks.push(Buffer.from(`\n[rewind: output truncated after ${maxBuffer} bytes limit]\n`, 'utf8'));
+            }
+          } else {
+            stderrChunks.push(chunk);
+            stderrBytes += chunk.length;
+          }
         } else if (!stderrTruncated) {
           stderrTruncated = true;
           stderrChunks.push(Buffer.from(`\n[rewind: output truncated after ${maxBuffer} bytes limit]\n`, 'utf8'));
