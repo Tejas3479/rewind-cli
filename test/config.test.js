@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import { resolveConfig, findProjectRoot, DEFAULT_LEDGER_DIR, VERSION } from '../src/config.js';
 
 describe('Config & Root Discovery (src/config.js)', () => {
-  test('VERSION is exported as 0.1.0', () => {
-    assert.equal(VERSION, '0.1.0');
+  test('VERSION is exported as 1.0.0', () => {
+    assert.equal(VERSION, '1.0.0');
   });
 
   test('resolveConfig uses explicit cliRoot when provided', () => {

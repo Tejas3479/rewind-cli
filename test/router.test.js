@@ -62,7 +62,7 @@ describe('Command Router (src/router.js)', () => {
     const mock = createMockContext({ flags: { version: true, help: false, json: false, noColor: false, root: null } });
     const code = await dispatch({ context: mock.context });
     assert.equal(code, 0);
-    assert.ok(mock.getStdout().includes('rewind v0.1.0'));
+    assert.ok(mock.getStdout().includes('rewind v1.0.0'));
   });
 
   test('throws UnknownCommandError when an unrecognized command is given', async () => {

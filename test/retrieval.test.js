@@ -124,7 +124,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
 
       assert.equal(code, 0);
       const out = mockLimit.getStdout();
-      assert.ok(out.includes('Showing 2 of 5 incident(s)'));
+      assert.ok(out.includes('Showing 1-2 of 5 incidents.'));
       assert.ok(out.includes('#5'));
       assert.ok(out.includes('#4'));
       assert.ok(!out.includes('#1'));

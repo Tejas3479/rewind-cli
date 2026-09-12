@@ -34,7 +34,7 @@ describe('Reproducible Build Engine (scripts/build.js)', () => {
 
   it('standalone artifact executes --version with exact output', () => {
     const output = execSync(`node "${distFile}" --version`, { encoding: "utf8" }).trim();
-    assert.equal(output, "rewind v0.1.0");
+    assert.equal(output, "rewind v1.0.0");
   });
 
   it('standalone artifact executes help command cleanly', () => {

@@ -128,6 +128,7 @@ export function parseArgs(rawArgs = []) {
     noColor: false,
     root: null,
     limit: null,
+    offset: null,
     cause: null,
     change: null,
     verifyCmd: null,
@@ -272,6 +273,25 @@ export function parseArgs(rawArgs = []) {
       }
       flags.limit = num;
       i++;
+    } else if (arg === '--offset') {
+      i++;
+      if (i >= rawArgs.length || (rawArgs[i].startsWith('-') && !/^-\d+$/.test(rawArgs[i]))) {
+        throw new InvalidArgumentError('Option "--offset" requires a non-negative integer value.');
+      }
+      const num = Number.parseInt(rawArgs[i], 10);
+      if (Number.isNaN(num) || num < 0) {
+        throw new InvalidArgumentError(`Option "--offset" requires a non-negative integer, got "${rawArgs[i]}".`);
+      }
+      flags.offset = num;
+      i++;
+    } else if (arg.startsWith('--offset=')) {
+      const val = arg.slice('--offset='.length);
+      const num = Number.parseInt(val, 10);
+      if (!val || Number.isNaN(num) || num < 0) {
+        throw new InvalidArgumentError(`Option "--offset" requires a non-negative integer, got "${val}".`);
+      }
+      flags.offset = num;
+      i++;
     } else if (arg === '--cause' || arg === '-c') {
       i++;
       if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
@@ -412,6 +432,22 @@ export function parseArgs(rawArgs = []) {
       i++;
     } else if (arg === '--overwrite') {
       flags.overwrite = true;
+      i++;
+    } else if (arg === '--force' || arg === '--yes' || arg === '-y') {
+      flags.force = true;
+      i++;
+    } else if (arg === '--quiet' || arg === '-q') {
+      flags.quiet = true;
+      i++;
+    } else if (arg === '--shell') {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--shell" requires a shell name (bash, zsh, powershell, fish).');
+      }
+      flags.shell = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--shell=')) {
+      flags.shell = arg.slice('--shell='.length);
       i++;
     } else if (arg.startsWith('-')) {
       throw new InvalidArgumentError(`Unknown option: "${arg}". Run "rewind --help" for usage.`);

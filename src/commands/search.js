@@ -49,8 +49,16 @@ export async function searchCommand({ context }) {
   }
 
   const query = queryTokens.join(' ');
-  const allRecords = storage.listRecords();
-  const matches = searchRecords(query, allRecords, { limit: parsedArgs.flags.limit });
+  const { records: allRecords } = storage.listRecords();
+  
+  let limit = parsedArgs.flags.limit;
+  if (limit === undefined) {
+    limit = context.config.settings?.defaultLimit ?? 20;
+  } else if (limit === 0) {
+    limit = undefined;
+  }
+
+  const matches = searchRecords(query, allRecords, { limit });
 
   if (parsedArgs.flags.json) {
     stdout.write(formatJson({

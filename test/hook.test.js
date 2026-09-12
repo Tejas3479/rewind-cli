@@ -213,7 +213,7 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       assert.equal(getStderr(), '');
 
       storage.rebuildIndex();
-      const records = storage.listRecords();
+      const { records } = storage.listRecords();
       assert.equal(records.length, 0);
     });
 

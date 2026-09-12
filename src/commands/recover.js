@@ -53,7 +53,12 @@ export async function recoverCommand({ context }) {
   const rawId = parsedArgs.positional[0];
 
   if (!rawId) {
-    throw new MissingArgumentError('id', 'rewind recover <id> [--cause "..."] [--change "..."] [--verify-cmd "..."] [--fixed]');
+    const { records } = storage.listRecords({ limit: 1, reverse: true });
+    let msg = 'rewind recover <id> [--cause "..."] [--change "..."] [--verify-cmd "..."] [--fixed]';
+    if (records.length > 0) {
+      msg = `rewind recover <id> [--cause "..."] [--change "..."] [--verify-cmd "..."] [--fixed]\n\nTip: The latest incident is #${records[0].id}. Run "rewind recover ${records[0].id}".`;
+    }
+    throw new MissingArgumentError('id', msg);
   }
 
   const id = normalizeId(rawId);

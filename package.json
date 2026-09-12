@@ -1,18 +1,34 @@
 {
-  "name": "rewind",
-  "version": "0.1.0",
+  "name": "rewind-cli",
+  "version": "1.0.0",
   "description": "Remember what fixed it. A verified-recovery ledger for the terminal.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
     "rewind": "./bin/rewind.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "dist/",
+    "LICENSE",
+    "README.md",
+    "AGENT_INTERFACE.md"
+  ],
   "scripts": {
     "test": "node --test",
     "build": "node scripts/build.js",
     "verify:build": "node --test test/build.test.js",
     "check": "node --check bin/rewind.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tejas3479/rewind.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Tejas3479/rewind/issues"
+  },
+  "homepage": "https://github.com/Tejas3479/rewind#readme",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -20,8 +36,15 @@
     "cli",
     "terminal",
     "recovery",
+    "debugging",
+    "error-tracking",
     "ledger",
-    "zero-dependency"
+    "zero-dependency",
+    "developer-tools",
+    "devtools",
+    "dx",
+    "mcp",
+    "ai-agent"
   ],
   "author": "Tejas3479 <tejas38293@gmail.com>",
   "license": "MIT"

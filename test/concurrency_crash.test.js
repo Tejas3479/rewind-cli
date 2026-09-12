@@ -65,7 +65,7 @@ describe('Concurrency, Crash & Stream Bounds (src/storage/store.js & record.js)'
         });
       }
 
-      const all = storage.listRecords();
+      const { records: all } = storage.listRecords();
       assert.equal(all.length, 20);
 
       // Verify IDs are strictly ordered 1 through 20

@@ -1,0 +1,16 @@
+# Development & hackathon files
+.rewind/
+.git/
+.github/
+test/
+scripts/
+.zero-dep.toml
+deps-proof.txt
+DEPENDENCY_PROOF.md
+REPRODUCIBLE_BUILD.md
+STDLIB.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+Makefile
+.gitignore

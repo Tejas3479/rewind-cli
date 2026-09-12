@@ -789,16 +789,18 @@ export class StorageEngine {
    *
    * @param {object} [options={}]
    * @param {number} [options.limit]
+   * @param {number} [options.offset]
    * @param {boolean} [options.reverse=false]
-   * @returns {Array<import('./record.js').IncidentRecord>}
+   * @returns {{ records: Array<import('./record.js').IncidentRecord>, total: number }}
    */
   listRecords(options = {}) {
     if (!this.initialized) {
       this.init();
     }
 
-    const { limit, reverse = false } = options;
+    const { limit, offset = 0, reverse = false } = options;
     const values = Array.from(this.index.values());
+    const total = values.length;
 
     values.sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
 
@@ -807,10 +809,14 @@ export class StorageEngine {
     }
 
     if (typeof limit === 'number' && limit > 0) {
-      return values.slice(0, limit);
+      return { records: values.slice(offset, offset + limit), total };
+    }
+    
+    if (offset > 0) {
+      return { records: values.slice(offset), total };
     }
 
-    return values;
+    return { records: values, total };
   }
 
   /**

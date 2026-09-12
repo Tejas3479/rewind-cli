@@ -19,7 +19,12 @@ export async function showCommand({ context }) {
   const rawId = parsedArgs.positional[0];
 
   if (!rawId) {
-    throw new MissingArgumentError('id', 'rewind show <id> [--json]');
+    const { records } = storage.listRecords({ limit: 1, reverse: true });
+    let msg = 'rewind show <id> [--json]';
+    if (records.length > 0) {
+      msg = `rewind show <id> [--json]\n\nTip: The latest incident is #${records[0].id}. Run "rewind show ${records[0].id}".`;
+    }
+    throw new MissingArgumentError('id', msg);
   }
 
   const id = normalizeId(rawId);
@@ -127,15 +132,43 @@ export async function showCommand({ context }) {
 
   // Section 4: Environment & Repository Metadata
   stdout.write(`${s.bold('ENVIRONMENT & REPOSITORY:')}\n`);
-  if (record.git && record.git.isGit) {
-    stdout.write(`  ${s.dim('Git Branch:'.padEnd(14))} ${record.git.branch || s.dim('detached')} (${record.git.headCommit ? record.git.headCommit.slice(0, 10) : 'none'})\n`);
-  }
-  if (record.environment) {
-    stdout.write(`  ${s.dim('Platform:'.padEnd(14))} ${record.environment.platform} (${record.environment.arch}) / OS ${record.environment.osRelease}\n`);
-    stdout.write(`  ${s.dim('Runtime:'.padEnd(14))} Node.js ${record.environment.nodeVersion}\n`);
-    if (record.environment.envKeysHash) {
-      stdout.write(`  ${s.dim('Env Keys Hash:'.padEnd(14))} ${s.dim(record.environment.envKeysHash)}\n`);
+  
+  if (stalenessReport && stalenessReport.diffs) {
+    const diffs = stalenessReport.diffs;
+
+    // Git
+    const gitMsg = diffs.git.diverged
+      ? `${s.red(`historical: ${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`)} -> ${s.green(`current: ${diffs.git.currentBranch} (${diffs.git.currentCommit})`)}`
+      : `${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`;
+    stdout.write(`  ${s.dim('Git:'.padEnd(14))} ${gitMsg}\n`);
+
+    // Platform & Arch
+    const platMsg = diffs.platform.changed
+      ? `${s.red(diffs.platform.historical)} -> ${s.green(diffs.platform.current)}`
+      : diffs.platform.historical;
+    const archMsg = diffs.arch.changed
+      ? `${s.red(diffs.arch.historical)} -> ${s.green(diffs.arch.current)}`
+      : diffs.arch.historical;
+    stdout.write(`  ${s.dim('Platform:'.padEnd(14))} ${platMsg} (${archMsg})\n`);
+
+    // Runtime
+    const rtMsg = diffs.runtime.changed
+      ? `${s.red(diffs.runtime.historical)} -> ${s.green(diffs.runtime.current)}`
+      : diffs.runtime.historical;
+    stdout.write(`  ${s.dim('Runtime:'.padEnd(14))} Node.js ${rtMsg}\n`);
+  } else {
+    // Fallback if staleness report is missing
+    if (record.git && record.git.isGit) {
+      stdout.write(`  ${s.dim('Git Branch:'.padEnd(14))} ${record.git.branch || s.dim('detached')} (${record.git.headCommit ? record.git.headCommit.slice(0, 10) : 'none'})\n`);
     }
+    if (record.environment) {
+      stdout.write(`  ${s.dim('Platform:'.padEnd(14))} ${record.environment.platform} (${record.environment.arch}) / OS ${record.environment.osRelease}\n`);
+      stdout.write(`  ${s.dim('Runtime:'.padEnd(14))} Node.js ${record.environment.nodeVersion}\n`);
+    }
+  }
+
+  if (record.environment && record.environment.envKeysHash) {
+    stdout.write(`  ${s.dim('Env Keys:'.padEnd(14))} ${s.dim(record.environment.envKeysHash)} (hash)\n`);
   }
   stdout.write('\n');
 

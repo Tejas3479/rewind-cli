@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { redactSecrets, sanitizeForDisplay } from '../sanitizer.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from '../storage/state.js';
 import { CliError } from '../errors.js';
+import { VERSION } from '../config.js';
 
 export const CURRENT_BUNDLE_SCHEMA_VERSION = 1;
 export const BUNDLE_FORMAT_IDENTIFIER = 'REWIND_SHARED_RECOVERY_BUNDLE';
@@ -158,7 +159,7 @@ export function exportRecoveryBundle({
     throw new CliError('Storage engine is required for export.');
   }
 
-  const allRecords = storage.listRecords();
+  const { records: allRecords } = storage.listRecords();
   const candidateRecords = includeUnverified
     ? allRecords
     : allRecords.filter(r =>
@@ -187,7 +188,7 @@ export function exportRecoveryBundle({
     $schema: 'https://rewind.dev/schemas/v1/shared-recovery.json',
     format: BUNDLE_FORMAT_IDENTIFIER,
     schemaVersion: CURRENT_BUNDLE_SCHEMA_VERSION,
-    producerVersion: '0.1.0',
+    producerVersion: VERSION,
     exportedAt: new Date().toISOString(),
     generator: 'rewind export-shared',
     bundleFingerprint,
@@ -309,7 +310,7 @@ export function importRecoveryBundle({
 
   validateBundleStructure(bundleData);
 
-  const existingRecords = storage.listRecords();
+  const { records: existingRecords } = storage.listRecords();
   const importedIncidents = [];
   let skippedCount = 0;
   let totalVerifiedCount = 0;

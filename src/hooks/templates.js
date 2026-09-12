@@ -58,7 +58,7 @@ if [[ $- == *i* ]]; then
             _rewind_duration=$((_rewind_now - _REWIND_CMD_START))
           fi
         fi
-        rewind hook record --exit "$_rewind_exit" --cmd "$_REWIND_LAST_CMD" --duration "$_rewind_duration" 2>/dev/null || true
+        ( rewind hook record --exit "$_rewind_exit" --cmd "$_REWIND_LAST_CMD" --duration "$_rewind_duration" & ) 2>/dev/null
       fi
     fi
     _REWIND_LAST_CMD=""
@@ -111,7 +111,7 @@ if [[ -o interactive ]]; then
             _rewind_duration=$((_rewind_now - _REWIND_CMD_START))
           fi
         fi
-        rewind hook record --exit "$_rewind_exit" --cmd "$_REWIND_LAST_CMD" --duration "$_rewind_duration" 2>/dev/null || true
+        ( rewind hook record --exit "$_rewind_exit" --cmd "$_REWIND_LAST_CMD" --duration "$_rewind_duration" & ) 2>/dev/null
       fi
     fi
     _REWIND_LAST_CMD=""

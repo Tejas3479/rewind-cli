@@ -44,9 +44,15 @@ function getResultSummary(rec, s) {
 export async function historyCommand({ context }) {
   const { parsedArgs, storage, stdout, styler } = context;
 
-  const limit = parsedArgs.flags.limit;
-  const totalCount = storage.index.size;
-  const records = storage.listRecords({ limit, reverse: true });
+  // Use CLI flag if provided, otherwise config default. If explicit 0 is passed, fetch all.
+  let limit = parsedArgs.flags.limit;
+  if (limit === undefined) {
+    limit = context.config.settings?.defaultLimit ?? 20;
+  } else if (limit === 0) {
+    limit = undefined; // 0 means all
+  }
+  const offset = parsedArgs.flags.offset || 0;
+  const { records, total: totalCount } = storage.listRecords({ limit, offset, reverse: true });
 
   if (parsedArgs.flags.json) {
     stdout.write(formatJson({
@@ -115,7 +121,17 @@ export async function historyCommand({ context }) {
   }
 
   stdout.write(`${divider}\n`);
-  stdout.write(`${s.dim(`Showing ${records.length} of ${totalCount} incident(s). Run "${s.cyan('rewind show <id>')}" to inspect full forensic details.`)}\n\n`);
+
+  const startIdx = offset + 1;
+  const endIdx = offset + records.length;
+  stdout.write(`${s.dim(`Showing ${startIdx}-${endIdx} of ${totalCount} incidents.`)}\n`);
+  
+  if (endIdx < totalCount) {
+    const nextLimit = limit || records.length;
+    stdout.write(`${s.dim(`Next: rewind history --limit ${nextLimit} --offset ${endIdx}`)}\n`);
+  }
+  
+  stdout.write(`${s.dim(`Run "${s.cyan('rewind show <id>')}" to inspect full forensic details.`)}\n\n`);
 
   return 0;
 }

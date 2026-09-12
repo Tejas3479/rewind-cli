@@ -21,7 +21,11 @@ function cleanRecordForComparison(record) {
 }
 
 /**
- * Performs a comprehensive, four-layer read-only integrity audit of the local Rewind ledger.
+ * Performs a comprehensive, four-layer read-only integrity audit of the local Rewind ledger
+ * using pre-parsed journal events.
+ *
+ * This variant accepts pre-parsed events to avoid redundant disk reads when the caller
+ * (e.g. buildAgentContext) has already read the journal.
  *
  * Invariants:
  * 1. Strictly read-only: never modifies, deletes, re-seals, or repairs files on disk.
@@ -31,11 +35,15 @@ function cleanRecordForComparison(record) {
  * 5. Layer 4: Logical Projection Consistency (verifies derived .rewind/records/*.json matches pure journal replay).
  * 6. Quarantine Audit: Isolated malformed files reported separately without polluting active chain logic.
  *
- * @param {string} ledgerDir - Absolute path to .rewind
+ * @param {object} params
+ * @param {Array<object>} params.events - Pre-parsed journal events
+ * @param {Array<object>} [params.malformed=[]] - Malformed journal lines
+ * @param {number} [params.totalLines=0] - Total lines parsed from journal
+ * @param {string} params.ledgerDir - Absolute path to .rewind
+ * @param {Map<string, object>} [params.projectedRecords] - Pre-computed projected records (avoids redundant replay)
  * @returns {object} - Complete forensic audit report
  */
-export function verifyLedgerIntegrity(ledgerDir) {
-  const journalPath = path.join(ledgerDir, 'journal.jsonl');
+export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalLines = 0, ledgerDir, projectedRecords }) {
   const recordsDir = path.join(ledgerDir, 'records');
   const quarantineDir = path.join(ledgerDir, 'quarantine');
 
@@ -49,11 +57,6 @@ export function verifyLedgerIntegrity(ledgerDir) {
       firstInvalidEvent = errorObj;
     }
   }
-
-  // ─────────────────────────────────────────────────────────────
-  // 1. Read Journal and Check for Malformed Lines
-  // ─────────────────────────────────────────────────────────────
-  const { events, malformed, totalLines } = readJournalEvents(journalPath);
 
   for (const mal of malformed) {
     recordError('MALFORMED_RECORD', `Unparseable JSON at journal line ${mal.lineNumber}: ${mal.error}`, {
@@ -249,7 +252,7 @@ export function verifyLedgerIntegrity(ledgerDir) {
   let projectionDriftCount = 0;
 
   if (chainIntact && malformed.length === 0) {
-    const projectedMap = projectEventsToRecords(events);
+    const projectedMap = projectedRecords || projectEventsToRecords(events);
     let onDiskFiles = [];
     try {
       if (fs.existsSync(recordsDir)) {
@@ -338,6 +341,15 @@ export function verifyLedgerIntegrity(ledgerDir) {
 
   const lastEvent = events.length > 0 ? events[events.length - 1] : null;
 
+  // Compute projection count without redundant replay
+  let projectionExamined = 0;
+  if (chainIntact && malformed.length === 0) {
+    projectionExamined = projectionConsistentCount + projectionDriftCount;
+  } else if (events.length > 0) {
+    // Chain is broken so Layer 4 was skipped — compute minimally
+    projectionExamined = (projectedRecords || projectEventsToRecords(events)).size;
+  }
+
   return {
     status,
     isTrusted,
@@ -357,7 +369,7 @@ export function verifyLedgerIntegrity(ledgerDir) {
       headChainHash: checkpoint ? checkpoint.headChainHash : null
     },
     projections: {
-      examined: events.length > 0 ? projectEventsToRecords(events).size : 0,
+      examined: projectionExamined,
       consistent: projectionConsistentCount,
       driftCount: projectionDriftCount
     },
@@ -368,4 +380,27 @@ export function verifyLedgerIntegrity(ledgerDir) {
     firstInvalidEvent,
     errors
   };
+}
+
+/**
+ * Performs a comprehensive read-only integrity audit of the local Rewind ledger
+ * by reading the journal from disk.
+ *
+ * @param {string} ledgerDir
+ * @returns {object}
+ */
+export function verifyLedgerIntegrity(ledgerDir) {
+  const journalPath = path.join(ledgerDir, 'journal.jsonl');
+  let parseResult = { events: [], malformed: [], totalLines: 0 };
+  
+  if (fs.existsSync(journalPath)) {
+    parseResult = readJournalEvents(journalPath);
+  }
+  
+  return verifyLedgerIntegrityFromEvents({
+    events: parseResult.events,
+    malformed: parseResult.malformed,
+    totalLines: parseResult.totalLines,
+    ledgerDir
+  });
 }

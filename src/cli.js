@@ -51,20 +51,20 @@ export async function runCLI(
     // 1. Argument parsing
     parsedArgs = parseArgs(argv);
 
-    // 2. Setup Styler (NO_COLOR, FORCE_COLOR, isTTY, --no-color flag)
-    const colorEnabled = shouldEnableColor({
-      isTTY,
-      env,
-      noColorFlag: parsedArgs.flags.noColor
-    });
-    styler = createStyler(colorEnabled);
-
-    // 3. Configuration & Root discovery
+    // 2. Configuration & Root discovery
     const config = resolveConfig({
       cliRoot: parsedArgs.flags.root,
       env,
       cwd
     });
+
+    // 3. Setup Styler (NO_COLOR, FORCE_COLOR, isTTY, --no-color flag, config settings)
+    const colorEnabled = shouldEnableColor({
+      isTTY,
+      env,
+      noColorFlag: parsedArgs.flags.noColor || config.settings?.colorOutput === false
+    });
+    styler = createStyler(colorEnabled);
 
     // 4. Initialize Local Storage Engine
     const storage = new StorageEngine(config.ledgerDir);

@@ -243,6 +243,50 @@ const COMMAND_DOCS = {
       'rewind rebuild --json'
     ]
   },
+  init: {
+    usage: 'rewind init [options]',
+    description: 'Initialize a new local ledger and shell hooks in the current project.',
+    arguments: [],
+    options: [
+      { flag: '--no-color', description: 'Disable ANSI color formatting' }
+    ],
+    examples: ['rewind init']
+  },
+  stats: {
+    usage: 'rewind stats [options]',
+    description: 'View statistics and patterns across all recorded incidents.',
+    arguments: [],
+    options: [
+      { flag: '--json', description: 'Output as JSON' },
+      { flag: '--no-color', description: 'Disable ANSI color formatting' }
+    ],
+    examples: ['rewind stats', 'rewind stats --json']
+  },
+  clear: {
+    usage: 'rewind clear [options]',
+    description: 'Permanently delete the local ledger and all incident records.',
+    arguments: [],
+    options: [
+      { flag: '--force, -y', description: 'Skip confirmation prompt' }
+    ],
+    examples: ['rewind clear', 'rewind clear --force']
+  },
+  completions: {
+    usage: 'rewind completions <shell>',
+    description: 'Generate tab completion scripts for your shell (bash, zsh, powershell, fish).',
+    arguments: [
+      { name: '<shell>', description: 'Target shell' }
+    ],
+    options: [],
+    examples: ['rewind completions bash']
+  },
+  mcp: {
+    usage: 'rewind mcp',
+    description: 'Start MCP server on stdio for integration with AI coding agents.',
+    arguments: [],
+    options: [],
+    examples: ['rewind mcp']
+  },
   doctor: {
     usage: 'rewind doctor [options]',
     description: 'Run comprehensive self-diagnostics on ledger integrity, storage consistency, configuration, and runtime health.',

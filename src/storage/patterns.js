@@ -542,7 +542,23 @@ export function analyzePatternsFromJournal(ledgerDir, options = {}) {
   // 2. Derive canonical projected records from event replay
   const projectedRecords = projectEventsToRecords(events);
 
-  // 3. Group by failure fingerprint
+  return analyzePatternsFromEvents(events, projectedRecords, options);
+}
+
+/**
+ * Analyzes pre-parsed journal events and projected records to generate a complete pattern
+ * intelligence report. This variant avoids redundant disk reads when the caller
+ * (e.g. buildAgentContext) has already read the journal.
+ *
+ * @param {Array<object>} events - Pre-parsed journal events
+ * @param {Map<string, object>} projectedRecords - Pre-computed projected records
+ * @param {object} [options={}]
+ * @param {string} [options.fingerprint] - Filter report to a specific fingerprint
+ * @param {number} [options.limit] - Limit number of pattern families returned
+ * @returns {object} PatternReport
+ */
+export function analyzePatternsFromEvents(events, projectedRecords, options = {}) {
+  // 1. Group by failure fingerprint
   const families = groupEventsByFingerprint(events, projectedRecords);
 
   const patternReports = [];
@@ -579,3 +595,4 @@ export function analyzePatternsFromJournal(ledgerDir, options = {}) {
     patterns: finalReports
   };
 }
+

@@ -16,6 +16,11 @@ import { triageCommand } from './commands/triage.js';
 import { hookCommand } from './commands/hook.js';
 import { exportSharedCommand } from './commands/export_shared.js';
 import { importSharedCommand } from './commands/import_shared.js';
+import { initCommand } from './commands/init.js';
+import { statsCommand } from './commands/stats.js';
+import { clearCommand } from './commands/clear.js';
+import { completionsCommand } from './commands/completions.js';
+import { mcpCommand } from './commands/mcp.js';
 
 export const COMMANDS = Object.freeze({
   run: runCommand,
@@ -38,6 +43,11 @@ export const COMMANDS = Object.freeze({
   'verify-integrity': verifyIntegrityCommand,
   verify_integrity: verifyIntegrityCommand,
   rebuild: rebuildCommand,
+  init: initCommand,
+  stats: statsCommand,
+  clear: clearCommand,
+  completions: completionsCommand,
+  mcp: mcpCommand,
   help: helpCommand,
   version: versionCommand
 });

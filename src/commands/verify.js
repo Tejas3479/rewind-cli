@@ -22,7 +22,12 @@ export async function verifyCommand({ context }) {
   const rawId = parsedArgs.positional[0];
 
   if (!rawId) {
-    throw new MissingArgumentError('id', 'rewind verify <id>');
+    const { records } = storage.listRecords({ limit: 1, reverse: true });
+    let msg = 'rewind verify <id>';
+    if (records.length > 0) {
+      msg = `rewind verify <id>\n\nTip: The latest incident is #${records[0].id}. Run "rewind verify ${records[0].id}".`;
+    }
+    throw new MissingArgumentError('id', msg);
   }
 
   const id = normalizeId(rawId);
@@ -37,7 +42,8 @@ export async function verifyCommand({ context }) {
 
   const isRecovered = record.status === IncidentStatus.RECOVERED || record.status === 'VERIFIED';
   if (isRecovered) {
-    throw new UsageError(`Incident #${id} is already in state RECOVERED / VERIFIED.`);
+    stdout.write(`\n  ${styler.green('✓')} Incident #${id} is already verified and sealed.\n\n`);
+    return 0;
   }
 
   // Find the latest recovery attempt with a verifyCmd

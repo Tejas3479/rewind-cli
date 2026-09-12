@@ -294,3 +294,87 @@ rewind recover 14 --cause "Postgres port mismatch" --change "Updated port in .en
 # 4. Seal verification
 rewind verify 14
 ```
+
+---
+
+## 6. MCP Server Integration (Model Context Protocol)
+
+Rewind includes a built-in MCP server that exposes verified recovery knowledge to AI coding agents via JSON-RPC 2.0 over stdio.
+
+### Starting the MCP Server
+
+```bash
+rewind mcp
+```
+
+This starts a long-running process that reads JSON-RPC messages from stdin and writes responses to stdout.
+
+### Available Tools
+
+| Tool | Description | Required Parameters |
+|:---|:---|:---|
+| `rewind_context` | Get full agent context for an incident | `incidentId?` (defaults to "latest") |
+| `rewind_search` | Search historical failures by keyword | `query` (string), `limit?` |
+| `rewind_recover` | Record a recovery hypothesis | `incidentId`, `cause`, `change`, `verifyCmd?` |
+| `rewind_history` | List recent incidents | `limit?` |
+| `rewind_show` | Show detailed incident info | `incidentId` |
+
+### Claude Code Configuration
+
+Add to your `claude_desktop_config.json` or project's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "rewind": {
+      "command": "rewind",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### Cursor MCP Settings
+
+Add to your Cursor MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "rewind": {
+      "command": "rewind",
+      "args": ["mcp"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### VS Code + Continue
+
+Add to your `.continue/config.json`:
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "rewind",
+          "args": ["mcp"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Generic MCP Client
+
+Any MCP-compliant client can connect via stdio:
+
+```bash
+# The server expects newline-delimited JSON-RPC 2.0 messages on stdin
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test"}}}' | rewind mcp
+```

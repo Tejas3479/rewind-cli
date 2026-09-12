@@ -226,8 +226,8 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       // Try verify again
       const mock4 = createMockIO({ cwd: tmpDir });
       const code4 = await runCLI([rootFlag, 'verify', '1'], mock4.io);
-      assert.equal(code4, 2);
-      assert.ok(mock4.getStderr().includes('is already in state'));
+      assert.equal(code4, 0);
+      assert.ok(mock4.getStdout().includes('is already verified and sealed'));
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

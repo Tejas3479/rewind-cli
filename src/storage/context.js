@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { readJournalEvents } from './journal.js';
 import { projectEventsToRecords } from './projection.js';
-import { verifyLedgerIntegrity } from './integrity.js';
+import { verifyLedgerIntegrityFromEvents } from './integrity.js';
 import { evaluateStaleness } from './staleness.js';
 import { extractNegativeMemory } from './negative_memory.js';
 import { analyzeEvidenceConflicts } from './contradiction.js';
-import { analyzePatternsFromJournal } from './patterns.js';
+import { analyzePatternsFromEvents } from './patterns.js';
 import { searchRecords } from './search.js';
 import { redactSecrets } from '../sanitizer.js';
 import { captureSafeEnvironment } from '../environment.js';
@@ -52,10 +52,23 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
     ? options.maxMatches
     : MAX_MATCHES_LIMIT;
 
-  // 1. Audit Ledger Trust (Read-Only)
+  // ── SINGLE-PASS: Read journal and project records exactly once ──
+  const journalPath = ledgerDir.endsWith('journal.jsonl')
+    ? ledgerDir
+    : path.join(ledgerDir, 'journal.jsonl');
+  const { events = [], malformed = [], totalLines = 0 } = readJournalEvents(journalPath);
+  const projectedRecords = projectEventsToRecords(events);
+
+  // 1. Audit Ledger Trust (using pre-parsed events — no redundant disk read)
   let ledgerTrustReport;
   try {
-    ledgerTrustReport = verifyLedgerIntegrity(ledgerDir);
+    ledgerTrustReport = verifyLedgerIntegrityFromEvents({
+      events,
+      malformed,
+      totalLines,
+      ledgerDir,
+      projectedRecords
+    });
   } catch (err) {
     ledgerTrustReport = {
       status: 'UNKNOWN',
@@ -65,13 +78,6 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
   }
 
   const isLedgerTrusted = ledgerTrustReport.status === 'TRUSTED';
-
-  // 2. Read Authoritative Journal & Derive Pure Projected State
-  const journalPath = ledgerDir.endsWith('journal.jsonl')
-    ? ledgerDir
-    : path.join(ledgerDir, 'journal.jsonl');
-  const { events = [] } = readJournalEvents(journalPath);
-  const projectedRecords = projectEventsToRecords(events);
 
   const allRecords = Array.from(projectedRecords.values()).sort((a, b) => Number(a.id) - Number(b.id));
 
@@ -252,7 +258,7 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
   const stalenessReport = evaluateStaleness(targetRecord, currentEnv);
   const conflictReport = analyzeEvidenceConflicts(targetRecord.fingerprint, familyRecords);
 
-  const patternReport = analyzePatternsFromJournal(ledgerDir, {
+  const patternReport = analyzePatternsFromEvents(events, projectedRecords, {
     fingerprint: targetRecord.fingerprint
   });
 
