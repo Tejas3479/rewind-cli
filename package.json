@@ -23,12 +23,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Tejas3479/rewind.git"
+    "url": "git+https://github.com/Tejas3479/rewind-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/Tejas3479/rewind/issues"
+    "url": "https://github.com/Tejas3479/rewind-cli/issues"
   },
-  "homepage": "https://github.com/Tejas3479/rewind#readme",
+  "homepage": "https://github.com/Tejas3479/rewind-cli#readme",
   "engines": {
     "node": ">=20.0.0"
   },

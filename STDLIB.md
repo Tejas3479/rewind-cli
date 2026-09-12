@@ -5,7 +5,7 @@
 
 ---
 
-## 🏆 Package Killer Spotlight: Eliminating 800M+ Weekly Downloads
+## 💥 Package Killer Spotlight: Eliminating 800M+ Weekly Downloads
 
 Rewind replaces an entire modern Node.js CLI toolchain with **100% standard library built-ins**. The table below highlights the top packages eliminated:
 

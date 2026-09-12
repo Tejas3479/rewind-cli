@@ -4,7 +4,7 @@
   <p><strong>Remember what fixed it. A verified-recovery ledger for the terminal.</strong></p>
 
   [![npm version](https://img.shields.io/npm/v/rewind-cli.svg?color=blue&style=flat-square)](https://www.npmjs.com/package/rewind-cli)
-  [![CI Build](https://img.shields.io/github/actions/workflow/status/Tejas3479/rewind/ci.yml?branch=main&style=flat-square)](https://github.com/Tejas3479/rewind/actions)
+  [![CI Build](https://img.shields.io/github/actions/workflow/status/Tejas3479/rewind-cli/ci.yml?branch=main&style=flat-square)](https://github.com/Tejas3479/rewind-cli/actions)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
   [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-green.svg?style=flat-square)](https://nodejs.org)
   [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg?style=flat-square)](https://www.npmjs.com/package/rewind-cli)

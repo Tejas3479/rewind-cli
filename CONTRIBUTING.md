@@ -21,7 +21,7 @@ No `npm install` is needed. You only need **Node.js >= 20.0.0**:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Tejas3479/rewind.git
+git clone https://github.com/Tejas3479/rewind-cli.git
 cd rewind
 
 # 2. Run the test suite
