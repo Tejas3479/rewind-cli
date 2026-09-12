@@ -15,13 +15,7 @@
 
 ---
 
-<div align="center">
-  <!-- TODO: Record an asciinema or terminalizer GIF and place it in ./assets/demo.gif -->
-  <img src="https://raw.githubusercontent.com/Tejas3479/rewind-cli/main/assets/demo-placeholder.png" alt="Rewind CLI Demo" width="800" />
-  <p><i>(Demo: Capturing a failed build, recording the fix, and verifying it.)</i></p>
-</div>
 
----
 
 ## ⚡ Why Rewind?
 
