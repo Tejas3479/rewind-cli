@@ -490,6 +490,11 @@ export class StorageEngine {
       });
     } catch {
       // If rename fails, try delete to prevent infinite crash loops
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Fallback failed
+      }
     }
   }
 

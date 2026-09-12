@@ -4,8 +4,20 @@
   "description": "Remember what fixed it. A verified-recovery ledger for the terminal.",
   "type": "module",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "rewind": "./bin/rewind.js"
+  },
+  "mcp": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "rewind-cli",
+      "mcp"
+    ]
   },
   "files": [
     "bin/",

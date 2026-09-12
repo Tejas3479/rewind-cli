@@ -89,8 +89,10 @@ function loadJsonConfig(filePath) {
       const content = fs.readFileSync(filePath, 'utf8');
       return JSON.parse(content) || {};
     }
-  } catch {
-    // Ignore parse or read errors for optional config
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      console.warn(`[rewind] Warning: Failed to parse config file ${filePath}: ${err.message}`);
+    }
   }
   return {};
 }
