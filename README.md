@@ -131,15 +131,21 @@ Skip typing `rewind run`. Install our passive shell hooks to catch failures auto
 
 ## 🤖 AI Agent Integration (MCP)
 
-Rewind acts as long-term negative memory for AI coding agents. Tools like Claude Desktop or Cursor can search your project's historical failures to avoid repeating past mistakes.
+Rewind acts as long-term negative memory for AI coding agents via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Tools like Claude Desktop, Cursor, and Windsurf can search your project's historical failures to avoid repeating past mistakes.
 
-Add this to your MCP client config (e.g. `claude_desktop_config.json`):
+You can manually start the server by running:
+```bash
+rewind mcp
+```
+
+### Claude Desktop Integration
+Add this to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "rewind": {
-      "command": "rewind-cli",
-      "args": ["mcp"],
+      "command": "npx",
+      "args": ["-y", "rewind-cli", "mcp"],
       "env": {
         "REWIND_ROOT": "/absolute/path/to/your/project"
       }
@@ -147,6 +153,27 @@ Add this to your MCP client config (e.g. `claude_desktop_config.json`):
   }
 }
 ```
+
+### Cursor Integration
+Add this to your `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "rewind": {
+      "command": "npx",
+      "args": ["-y", "rewind-cli", "mcp"]
+    }
+  }
+}
+```
+
+### Available Tools
+The MCP server exposes 5 tools for AI agents:
+- `rewind_context`: Retrieves the most recent failure context and recovery attempts.
+- `rewind_search`: Semantic search across historical failures and output logs.
+- `rewind_recover`: Submits a proposed fix/hypothesis for a failure.
+- `rewind_history`: Lists recent execution history and regressions.
+- `rewind_show`: Fetches deep details and evidence for a specific incident ID.
 
 ---
 

@@ -2,7 +2,6 @@ import readline from 'node:readline';
 import { parseMessage, createResponse, createErrorResponse, ErrorCodes } from './protocol.js';
 import { getToolDefinitions, executeTool } from './tools.js';
 
-const MCP_PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'rewind-mcp';
 const SERVER_VERSION = '1.0.0';
 
@@ -50,11 +49,14 @@ export async function startMcpServer(storage, options = {}) {
 
 async function handleMessage(msg, storage) {
   switch (msg.method) {
-    case 'initialize':
+    case 'initialize': {
+      const clientProtocol = msg.params?.protocolVersion || '2024-11-05';
+      const supportedVersions = ['2024-11-05', '2025-03-26'];
+      const versionToUse = supportedVersions.includes(clientProtocol) ? clientProtocol : '2025-03-26';
       return {
-        protocolVersion: MCP_PROTOCOL_VERSION,
+        protocolVersion: versionToUse,
         capabilities: {
-          tools: {},
+          tools: { listChanged: false },
           resources: {}
         },
         serverInfo: {
@@ -62,6 +64,7 @@ async function handleMessage(msg, storage) {
           version: SERVER_VERSION
         }
       };
+    }
       
     case 'notifications/initialized':
       return null; // notification, no response

@@ -101,18 +101,31 @@ export function getToolDefinitions() {
  * @returns {Promise<object>} Tool result { content: [{ type: 'text', text: '...' }] }
  */
 export async function executeTool(toolName, args, storage) {
+  function throwProtocolError(msg) {
+    const error = new Error(msg);
+    error.code = -32602; // INVALID_PARAMS
+    throw error;
+  }
+
   try {
     let result;
 
     switch (toolName) {
       case 'rewind_context': {
+        if (args.incidentId !== undefined && typeof args.incidentId !== 'string') {
+          throwProtocolError('incidentId must be a string');
+        }
         const target = args.incidentId || 'latest';
         result = await storage.getAgentContext(target, {});
         break;
       }
       
       case 'rewind_search': {
-        if (!args.query) throw new Error('Missing query parameter');
+        if (!args.query) throwProtocolError('Missing query parameter');
+        if (typeof args.query !== 'string') throwProtocolError('query must be a string');
+        if (args.limit !== undefined && typeof args.limit !== 'number') {
+          throwProtocolError('limit must be a number');
+        }
         const listRes = await storage.listRecords();
         const records = listRes.records || [];
         result = searchRecords(args.query, records, { limit: args.limit });
@@ -121,7 +134,13 @@ export async function executeTool(toolName, args, storage) {
       
       case 'rewind_recover': {
         if (!args.incidentId || !args.cause || !args.change) {
-          throw new Error('Missing required parameters (incidentId, cause, change)');
+          throwProtocolError('Missing required parameters (incidentId, cause, change)');
+        }
+        if (typeof args.incidentId !== 'string') throwProtocolError('incidentId must be a string');
+        if (typeof args.cause !== 'string') throwProtocolError('cause must be a string');
+        if (typeof args.change !== 'string') throwProtocolError('change must be a string');
+        if (args.verifyCmd !== undefined && typeof args.verifyCmd !== 'string') {
+          throwProtocolError('verifyCmd must be a string');
         }
         result = await storage.addRecoveryAttempt(args.incidentId, {
           cause: args.cause,
@@ -133,18 +152,23 @@ export async function executeTool(toolName, args, storage) {
       }
       
       case 'rewind_history': {
+        if (args.limit !== undefined && typeof args.limit !== 'number') {
+          throwProtocolError('limit must be a number');
+        }
         result = await storage.listRecords({ limit: args.limit || 10, reverse: true });
         break;
       }
       
       case 'rewind_show': {
-        if (!args.incidentId) throw new Error('Missing incidentId parameter');
+        if (!args.incidentId) throwProtocolError('Missing incidentId parameter');
+        if (typeof args.incidentId !== 'string') throwProtocolError('incidentId must be a string');
         result = await storage.getRecord(args.incidentId);
         break;
       }
       
-      default:
-        throw new Error(`Unknown tool: ${toolName}`);
+      default: {
+        throwProtocolError(`Unknown tool: ${toolName}`);
+      }
     }
 
     return {
@@ -154,6 +178,9 @@ export async function executeTool(toolName, args, storage) {
       }]
     };
   } catch (error) {
+    if (error.code === -32602) {
+      throw error; // Rethrow protocol-level errors to be handled by server.js
+    }
     return {
       content: [{
         type: 'text',
