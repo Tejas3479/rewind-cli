@@ -67,8 +67,17 @@ export async function runCLI(
     styler = createStyler(colorEnabled);
 
     // 4. Initialize Local Storage Engine
-    const storage = new StorageEngine(config.ledgerDir);
-    storage.init();
+    let storage = null;
+    try {
+      storage = new StorageEngine(config.ledgerDir);
+      storage.init();
+    } catch (storageErr) {
+      if (parsedArgs.command === 'run') {
+        stderr.write(`\n${styler.dim('[rewind:warning]')} Ledger initialization failed. Recording disabled: ${storageErr.message}\n`);
+      } else {
+        throw storageErr; // Other commands require a working ledger
+      }
+    }
 
     // 5. Build Context
     /** @type {CliContext} */
