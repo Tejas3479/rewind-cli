@@ -26,7 +26,7 @@ import { IncidentStatus } from '../storage/state.js';
 export async function hookCommand({ context }) {
   const { parsedArgs, storage, config, env, stdout, stderr, styler } = context;
   const s = styler;
-  const target = (parsedArgs.positional[0] || '').trim().toLowerCase();
+  const target = (parsedArgs.flags?.shell || parsedArgs.positional[0] || '').trim().toLowerCase();
 
   // If invoked as record helper by active shell hooks
   if (target === 'record' || parsedArgs.flags.exit !== null || parsedArgs.flags.cmd !== null) {

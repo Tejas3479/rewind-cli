@@ -3,7 +3,7 @@ import path from 'node:path';
 import { readCheckpoint } from '../storage/journal.js';
 
 export async function initCommand({ context }) {
-  const { storage, stdout, styler, cwd } = context;
+  const { storage, config, stdout, styler, cwd } = context;
 
   const ledgerDir = storage.ledgerDir;
   const journalPath = path.join(ledgerDir, 'journal.jsonl');
@@ -12,7 +12,8 @@ export async function initCommand({ context }) {
   const hasRecords = fs.existsSync(path.join(ledgerDir, 'records')) && fs.readdirSync(path.join(ledgerDir, 'records')).length > 0;
   const alreadyInitialized = hasEvents || hasRecords;
 
-  const gitignorePath = path.join(cwd, '.gitignore');
+  const repoRoot = config?.rootDir || cwd;
+  const gitignorePath = path.join(repoRoot, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
     const gitignore = fs.readFileSync(gitignorePath, 'utf8');
     if (!gitignore.split('\n').some(line => line.trim() === '.rewind/' || line.trim() === '.rewind')) {

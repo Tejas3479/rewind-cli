@@ -230,8 +230,21 @@ export function analyzeFamilyPatterns(fingerprint, records, familyEvents) {
     group.total += 1;
     group.incidents.push(rec.id);
 
-    // Verification runs are explicitly excluded from flakiness scoring
-    // to prevent verification failures from artificially inflating the flakiness heuristic.
+    // Track verification runs for flakiness scoring
+    if (Array.isArray(rec.recoveryAttempts)) {
+      for (const attempt of rec.recoveryAttempts) {
+        if (Array.isArray(attempt.verificationRuns)) {
+          for (const run of attempt.verificationRuns) {
+            group.total += 1;
+            if (run.exitCode === 0) {
+              group.passes += 1;
+            } else {
+              group.failures += 1;
+            }
+          }
+        }
+      }
+    }
   }
 
   let flakyDetected = false;
