@@ -3,19 +3,20 @@
  * Provides zero-dependency, non-intrusive integration scripts for bash, zsh, and PowerShell.
  */
 
-export const SUPPORTED_SHELLS = Object.freeze(['bash', 'zsh', 'powershell', 'pwsh']);
+export const SUPPORTED_SHELLS = Object.freeze(['bash', 'zsh', 'fish', 'powershell', 'pwsh']);
 
 /**
  * Normalizes shell name.
  *
  * @param {string} shell
- * @returns {'bash'|'zsh'|'powershell'|null}
+ * @returns {'bash'|'zsh'|'fish'|'powershell'|null}
  */
 export function normalizeShellName(shell) {
   if (!shell || typeof shell !== 'string') return null;
   const s = shell.trim().toLowerCase();
   if (s === 'bash') return 'bash';
   if (s === 'zsh') return 'zsh';
+  if (s === 'fish') return 'fish';
   if (s === 'powershell' || s === 'pwsh' || s === 'ps' || s === 'ps1') return 'powershell';
   return null;
 }
@@ -183,7 +184,43 @@ if ($Host.UI.RawUI -and [Environment]::UserInteractive) {
 }
 
 /**
- * Formats guide on how to install hooks across all supported shells.
+ * Generates fish shell integration hook script.
+ *
+ * @param {object} [options]
+ * @returns {string}
+ */
+export function getFishHook(options = {}) {
+  return `# REWIND Shell Integration for Fish
+# ------------------------------------------------------------------------------
+# To install in your current shell:
+#   rewind hook fish | source
+#
+# To install permanently, add this line to your ~/.config/fish/config.fish:
+#   rewind hook fish | source
+# ------------------------------------------------------------------------------
+
+status is-interactive; or exit
+
+function _rewind_postexec --on-event fish_postexec
+    set -l last_status $status
+    set -l cmd $argv[1]
+    
+    if test $last_status -ne 0
+        if not string match -q 'rewind*' "$cmd"; and not string match -q '*bin/rewind*' "$cmd"
+            set -l duration_ms 0
+            if test -n "$CMD_DURATION"
+                set duration_ms $CMD_DURATION
+            end
+            command rewind hook record --exit "$last_status" --cmd "$cmd" --duration "$duration_ms" >/dev/null 2>&1 &
+            disown $last_pid 2>/dev/null
+        end
+    end
+end
+`;
+}
+
+/**
+ * Renders the terminal interactive overview for supported hooks.
  *
  * @param {import('../formatter.js').createStyler} styler
  * @returns {string}
@@ -197,6 +234,7 @@ export function getInstallationOverview(styler) {
     `${s.bold('SUPPORTED SHELLS:')}`,
     `  • ${s.cyan('bash')}        Bourne Again Shell (macOS / Linux / WSL / Git Bash)`,
     `  • ${s.cyan('zsh')}         Z Shell (macOS default / Linux)`,
+    `  • ${s.cyan('fish')}        Friendly Interactive Shell (macOS / Linux)`,
     `  • ${s.cyan('powershell')}  PowerShell 5.1 & PowerShell Core 7+ (Windows / macOS / Linux)`,
     '',
     `${s.bold('USAGE:')}`,
@@ -208,6 +246,9 @@ export function getInstallationOverview(styler) {
     '',
     `  ${s.bold('Zsh')} (~/.zshrc):`,
     `    ${s.yellow('eval "$(rewind hook zsh)"')}`,
+    '',
+    `  ${s.bold('Fish')} (~/.config/fish/config.fish):`,
+    `    ${s.yellow('rewind hook fish | source')}`,
     '',
     `  ${s.bold('PowerShell')} ($PROFILE):`,
     `    ${s.yellow('Invoke-Expression (& rewind hook powershell | Out-String)')}`,

@@ -5,8 +5,46 @@ const STOP_WORDS = new Set([
   'the', 'a', 'an', 'in', 'on', 'at', 'of', 'to', 'is', 'for', 'and', 'or', 'it', 'by', 'with', 'from', 'as', 'be', 'this', 'that'
 ]);
 
+const ERROR_SYNONYMS = {
+  'eacces': ['permission', 'denied'],
+  'enoent': ['not', 'found'],
+  'econnrefused': ['connection', 'refused'],
+  'eaddrinuse': ['port', 'in', 'use'],
+  'enospc': ['no', 'space', 'left', 'on', 'device'],
+  'etimedout': ['timed', 'out', 'timeout'],
+  'eexist': ['file', 'exists'],
+  'eisdir': ['is', 'a', 'directory'],
+  'enotdir': ['not', 'a', 'directory']
+};
+
 /**
- * Tokenizes text into a unique set of normalized lowercase terms.
+ * Calculates Levenshtein distance between two strings.
+ * Zero dependencies.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+function levenshtein(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Tokenizes text into a unique set of normalized lowercase terms, expanding synonyms.
  *
  * @param {string} text
  * @returns {Set<string>}
@@ -20,6 +58,18 @@ export function extractTokens(text) {
     const clean = word.replace(/^[._-]+|[._-]+$/g, '');
     if (clean.length >= 2 && !STOP_WORDS.has(clean)) {
       tokens.add(clean);
+      if (ERROR_SYNONYMS[clean]) {
+        for (const syn of ERROR_SYNONYMS[clean]) {
+          tokens.add(syn);
+        }
+      }
+    }
+  }
+
+  // Also check reverse synonyms (e.g. text contains "permission" and "denied" -> add "eacces")
+  for (const [errno, syns] of Object.entries(ERROR_SYNONYMS)) {
+    if (syns.every(s => tokens.has(s))) {
+      tokens.add(errno);
     }
   }
 
@@ -128,12 +178,29 @@ export function scoreRecord(query, record, context = {}) {
   // Fast token intersection without large object overhead
   const matchedTokens = new Set();
   let matchedInRecovery = false;
+  
+  const allRecordTokens = new Set([...errorTokens, ...cmdTokens, ...recoveryTokens]);
+
   for (const token of queryTokens) {
     if (errorTokens.has(token) || cmdTokens.has(token)) {
       matchedTokens.add(token);
     } else if (recoveryTokens.has(token)) {
       matchedTokens.add(token);
       matchedInRecovery = true;
+    } else {
+      // Small Levenshtein-distance-<=2 matching on unmatched tokens
+      for (const rToken of allRecordTokens) {
+        if (Math.abs(token.length - rToken.length) <= 2) {
+          const distance = levenshtein(token, rToken);
+          if (distance <= 2) {
+            matchedTokens.add(token); // Add the query token as matched
+            if (recoveryTokens.has(rToken)) {
+              matchedInRecovery = true;
+            }
+            break;
+          }
+        }
+      }
     }
   }
 

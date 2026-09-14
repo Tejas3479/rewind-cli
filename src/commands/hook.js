@@ -4,6 +4,7 @@ import {
   normalizeShellName,
   getBashHook,
   getZshHook,
+  getFishHook,
   getPowerShellHook,
   getInstallationOverview
 } from '../hooks/templates.js';
@@ -132,6 +133,9 @@ export async function hookCommand({ context }) {
       break;
     case 'zsh':
       stdout.write(getZshHook());
+      break;
+    case 'fish':
+      stdout.write(getFishHook());
       break;
     case 'powershell':
       stdout.write(getPowerShellHook());

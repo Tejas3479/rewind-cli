@@ -10,6 +10,7 @@ import { IncidentStatus, RecoveryAttemptStatus } from '../src/storage/state.js';
 import {
   getBashHook,
   getZshHook,
+  getFishHook,
   getPowerShellHook,
   getInstallationOverview,
   normalizeShellName
@@ -76,7 +77,9 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       assert.equal(normalizeShellName('powershell'), 'powershell');
       assert.equal(normalizeShellName('pwsh'), 'powershell');
       assert.equal(normalizeShellName('ps'), 'powershell');
-      assert.equal(normalizeShellName('fish'), null);
+      assert.equal(normalizeShellName('fish'), 'fish');
+      assert.equal(normalizeShellName('FISH'), 'fish');
+      assert.equal(normalizeShellName('unknown'), null);
       assert.equal(normalizeShellName(''), null);
     });
 
@@ -99,6 +102,14 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       assert.match(script, /return \$_rewind_exit/);
     });
 
+    test('getFishHook generates valid fish script with postexec handler', () => {
+      const script = getFishHook();
+      assert.match(script, /rewind hook fish \| source/);
+      assert.match(script, /function _rewind_postexec --on-event fish_postexec/);
+      assert.match(script, /set -l last_status \$status/);
+      assert.match(script, /command rewind hook record/);
+    });
+
     test('getPowerShellHook generates valid PowerShell script with LASTEXITCODE restoration', () => {
       const script = getPowerShellHook();
       assert.match(script, /Invoke-Expression \(& rewind hook powershell \| Out-String\)/);
@@ -113,6 +124,7 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       assert.match(overview, /REWIND SHELL HOOKS/);
       assert.match(overview, /eval "\$\(rewind hook bash\)"/);
       assert.match(overview, /eval "\$\(rewind hook zsh\)"/);
+      assert.match(overview, /rewind hook fish \\| source/);
       assert.match(overview, /Invoke-Expression/);
     });
   });
@@ -164,6 +176,22 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       const out = getStdout();
       assert.match(out, /# REWIND Shell Integration for Zsh/);
       assert.match(out, /_rewind_precmd/);
+    });
+
+    test('rewind hook fish outputs fish script', async () => {
+      const { stdin, stdout, stderr, getStdout } = createMockIO();
+
+      const exitCode = await runCLI(['hook', 'fish'], {
+        stdin,
+        stdout,
+        stderr,
+        isTTY: false
+      });
+
+      assert.equal(exitCode, 0);
+      const out = getStdout();
+      assert.match(out, /# REWIND Shell Integration for Fish/);
+      assert.match(out, /fish_postexec/);
     });
 
     test('rewind hook powershell outputs PowerShell script', async () => {
