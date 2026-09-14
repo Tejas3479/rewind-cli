@@ -3,17 +3,34 @@ import { parseNodeDiagnostic } from './parsers/node.js';
 import { parsePythonDiagnostic } from './parsers/python.js';
 import { parseRustDiagnostic } from './parsers/rust.js';
 import { parseGoDiagnostic } from './parsers/go.js';
+import { parseAwsDiagnostic } from './parsers/aws.js';
+import { parseTerraformDiagnostic } from './parsers/terraform.js';
+import { parseKubernetesDiagnostic } from './parsers/kubernetes.js';
+import { parseJavaDiagnostic } from './parsers/java.js';
 
 export { ConfidenceLevel, createStructuredDiagnostic };
-export { parseNodeDiagnostic, parsePythonDiagnostic, parseRustDiagnostic, parseGoDiagnostic };
+export { 
+  parseNodeDiagnostic, 
+  parsePythonDiagnostic, 
+  parseRustDiagnostic, 
+  parseGoDiagnostic,
+  parseAwsDiagnostic,
+  parseTerraformDiagnostic,
+  parseKubernetesDiagnostic,
+  parseJavaDiagnostic
+};
 
 /**
  * Registry of diagnostic parsers executed in priority order.
  */
 const PARSER_REGISTRY = [
+  { name: 'aws', parse: parseAwsDiagnostic },
+  { name: 'terraform', parse: parseTerraformDiagnostic },
   { name: 'python', parse: parsePythonDiagnostic },
+  { name: 'java', parse: parseJavaDiagnostic },
   { name: 'rust', parse: parseRustDiagnostic },
   { name: 'go', parse: parseGoDiagnostic },
+  { name: 'kubernetes', parse: parseKubernetesDiagnostic },
   { name: 'node', parse: parseNodeDiagnostic }
 ];
 

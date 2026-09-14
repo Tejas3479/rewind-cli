@@ -274,4 +274,54 @@ RuntimeError: Request failed due to DB`;
     const diag = parseDiagnostic(raw);
     assert.equal(diag.rawEvidenceSnippet, 'TypeError: Oops');
   });
+
+  test('parses AWS CLI errors', () => {
+    const stderr = `An error occurred (AccessDenied) when calling the GetObject operation: Access Denied`;
+    const diag = parseDiagnostic(stderr);
+    
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.runtime, 'aws');
+    assert.equal(diag.errorType, 'GetObject');
+    assert.equal(diag.errorCode, 'AccessDenied');
+    assert.equal(diag.message, 'Access Denied');
+  });
+
+  test('parses Terraform errors', () => {
+    const stderr = `Error: Reference to undeclared resource
+
+  on main.tf line 10, in resource "aws_instance" "web":
+  10:   ami = aws_ami.ubuntu.id`;
+  
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'terraform');
+    assert.equal(diag.errorType, 'TerraformError');
+    assert.equal(diag.message, 'Reference to undeclared resource');
+    assert.equal(diag.sourceFile, 'main.tf');
+    assert.equal(diag.line, 10);
+  });
+
+  test('parses Kubernetes (kubectl) server errors', () => {
+    const stderr = `Error from server (NotFound): pods "foo" not found`;
+    const diag = parseDiagnostic(stderr);
+    
+    assert.equal(diag.language, 'kubernetes');
+    assert.equal(diag.errorType, 'ServerError');
+    assert.equal(diag.errorCode, 'NotFound');
+    assert.equal(diag.message, 'pods "foo" not found');
+  });
+
+  test('parses Java exceptions with stack trace', () => {
+    const stderr = `Exception in thread "main" java.lang.NullPointerException: Object is null
+	at com.example.MyClass.myMethod(MyClass.java:42)
+	at com.example.MyClass.main(MyClass.java:10)`;
+  
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'java');
+    assert.equal(diag.errorType, 'java.lang.NullPointerException');
+    assert.equal(diag.message, 'Object is null');
+    assert.equal(diag.sourceFile, 'MyClass.java');
+    assert.equal(diag.line, 42);
+    assert.equal(diag.stackFrames.length, 2);
+    assert.equal(diag.stackFrames[0].function, 'com.example.MyClass.myMethod');
+  });
 });
