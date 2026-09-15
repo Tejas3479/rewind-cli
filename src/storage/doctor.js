@@ -9,7 +9,7 @@ import { isValidRecord } from './record.js';
 import { redactSecrets } from '../sanitizer.js';
 import { IncidentStatus, RecoveryAttemptStatus } from './state.js';
 
-export const SUPPORTED_NODE_RANGE = '>=20.0.0';
+export const SUPPORTED_NODE_RANGE = '>=22.5.0';
 
 /**
  * Formats byte size into human-readable representation.
@@ -324,9 +324,10 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   // 4. Runtime Compatibility
   // ==========================================
   const currentVersion = process.version;
-  const majorVersionMatch = currentVersion.match(/^v(\d+)/);
-  const majorVersion = majorVersionMatch ? Number.parseInt(majorVersionMatch[1], 10) : 0;
-  const runtimeSupported = majorVersion >= 20;
+  const versionMatch = currentVersion.match(/^v(\d+)\.(\d+)/);
+  const majorVersion = versionMatch ? Number.parseInt(versionMatch[1], 10) : 0;
+  const minorVersion = versionMatch ? Number.parseInt(versionMatch[2], 10) : 0;
+  const runtimeSupported = majorVersion > 22 || (majorVersion === 22 && minorVersion >= 5);
 
   healthChecks.push({
     id: 'runtime_compatibility',
