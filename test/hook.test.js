@@ -63,7 +63,7 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore
     }

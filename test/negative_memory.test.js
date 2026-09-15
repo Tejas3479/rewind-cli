@@ -81,7 +81,7 @@ describe('Negative Memory Engine (src/storage/negative_memory.js)', () => {
       const hasVerified = failed.some(f => f.change === 'Added features = ["full"] in Cargo.toml');
       assert.equal(hasVerified, false);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

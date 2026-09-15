@@ -37,7 +37,7 @@ describe('rewind init command', () => {
 
       assert.ok(stdoutData.includes('Initialized empty Rewind ledger'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -69,7 +69,7 @@ describe('rewind init command', () => {
       assert.equal(exitCode, 0);
       assert.ok(stdoutData.includes('already initialized'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

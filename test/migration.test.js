@@ -94,7 +94,7 @@ describe('Schema Migration & Backward Compatibility (src/storage/record.js)', ()
       assert.equal(loaded.recoveryAttempts.length, 1);
       assert.equal(loaded.recoveryAttempts[0].cause, 'Missing env');
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

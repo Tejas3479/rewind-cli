@@ -40,7 +40,7 @@ export async function rebuildCommand({ context }) {
   stdout.write(`  ${s.dim('Indexes Rebuilt:'.padEnd(24))} ${s.green('✔ OK')}\n`);
   stdout.write(`  ${s.dim('Authoritative Journal:'.padEnd(24))} ${s.green('UNCHANGED (.rewind/journal.jsonl)')}\n`);
   stdout.write(`${divider}\n`);
-  stdout.write(`${s.dim('All derived incident records in .rewind/records/ have been reconstructed from immutable history.')}\n\n`);
+  stdout.write(`${s.dim('All derived incident records in .rewind/projection.db have been reconstructed from immutable history.')}\n\n`);
 
   return 0;
 }

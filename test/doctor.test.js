@@ -44,7 +44,7 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }
@@ -214,9 +214,9 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
         cwd: tempDir
       });
 
-      // Deliberately corrupt record file in records/
-      const recordPath = path.join(ledgerDir, 'records', '1.json');
-      fs.writeFileSync(recordPath, '{ corrupt json !!!', 'utf8');
+      // Deliberately corrupt record file in SQLite
+      storage.db.exec(`UPDATE records SET data = '{ corrupt json !!!' WHERE id = '1'`);
+      storage.close();
 
       const report = runDoctorDiagnostics(ledgerDir, { rootDir: tempDir });
       assert.strictEqual(report.status, 'DEGRADED');
@@ -316,10 +316,12 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       const orphanPath = path.join(ledgerDir, 'tmp', 'stale.tmp');
       fs.writeFileSync(orphanPath, 'stale', 'utf8');
 
-      // Simulate missing projection file in records/
-      const recPath = path.join(ledgerDir, 'records', '1.json');
-      fs.unlinkSync(recPath);
-      assert.strictEqual(fs.existsSync(recPath), false);
+      storage.close();
+
+      // Simulate missing projection database
+      const dbPath = path.join(ledgerDir, 'projection.db');
+      fs.unlinkSync(dbPath);
+      assert.strictEqual(fs.existsSync(dbPath), false);
 
       const repairResult = executeDoctorRepair(ledgerDir, { rootDir: tempDir }, { dryRun: false });
       assert.strictEqual(repairResult.status, 'COMPLETED');
@@ -328,9 +330,13 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       // Verify temp file was removed
       assert.strictEqual(fs.existsSync(orphanPath), false);
 
-      // Verify projection file was reconstructed from journal
-      assert.strictEqual(fs.existsSync(recPath), true);
-      const reconstructed = JSON.parse(fs.readFileSync(recPath, 'utf8'));
+      // Verify projection database was reconstructed from journal
+      assert.strictEqual(fs.existsSync(dbPath), true);
+      
+      const restoredStorage = new StorageEngine(ledgerDir).init();
+      const reconstructed = restoredStorage.getRecord('1');
+      restoredStorage.close();
+
       assert.strictEqual(reconstructed.id, '1');
       assert.strictEqual(reconstructed.fullCommand, 'npm test');
 

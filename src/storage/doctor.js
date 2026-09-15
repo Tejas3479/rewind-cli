@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { readJournalEvents, readCheckpoint, writeCheckpoint } from './journal.js';
-import { projectEventsToRecords, writeProjectedRecords } from './projection.js';
+import { projectEventsToRecords } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { isValidRecord } from './record.js';
 import { redactSecrets } from '../sanitizer.js';
@@ -455,25 +456,30 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   // ==========================================
   const corruptRecordFiles = [];
   let recordFilesCount = 0;
-  if (fs.existsSync(recordsDir)) {
+  
+  const dbPath = path.join(ledgerDir, 'projection.db');
+  if (fs.existsSync(dbPath)) {
     try {
-      const files = fs.readdirSync(recordsDir);
-      for (const f of files) {
-        if (!f.endsWith('.json')) continue;
-        recordFilesCount++;
-        const p = path.join(recordsDir, f);
-        try {
-          const raw = fs.readFileSync(p, 'utf8');
-          const parsed = JSON.parse(raw);
-          if (!isValidRecord(parsed)) {
-            corruptRecordFiles.push({ file: f, reason: 'Invalid record schema' });
+      const db = new DatabaseSync(dbPath);
+      try {
+        const rows = db.prepare('SELECT id, data FROM records').all();
+        for (const row of rows) {
+          recordFilesCount++;
+          try {
+            // Re-use mock/stub validation (could also just use native engine)
+            const parsed = JSON.parse(row.data);
+            if (!isValidRecord(parsed)) {
+              corruptRecordFiles.push({ file: `id:${row.id}`, reason: 'Invalid record schema' });
+            }
+          } catch (err) {
+            corruptRecordFiles.push({ file: `id:${row.id}`, reason: `Malformed JSON: ${err.message}` });
           }
-        } catch (err) {
-          corruptRecordFiles.push({ file: f, reason: `Malformed JSON: ${err.message}` });
         }
+      } finally {
+        db.close();
       }
-    } catch {
-      // Directory read error
+    } catch (err) {
+       corruptRecordFiles.push({ file: 'projection.db', reason: `Database read error: ${err.message}` });
     }
   }
 
@@ -508,7 +514,7 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
     }
   });
   if (corruptRecordFiles.length > 0) {
-    errors.push(`${corruptRecordFiles.length} corrupt record file(s) found in records/`);
+    errors.push(`${corruptRecordFiles.length} corrupt record(s) found in projection.db`);
   }
   if (journalMalformed.length > 0) {
     errors.push(`${journalMalformed.length} malformed line(s) found in journal.jsonl`);
@@ -556,14 +562,24 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
 
   try {
     projectedMap = projectEventsToRecords(journalEvents);
-    if (fs.existsSync(recordsDir) && journalEvents.length > 0) {
-      for (const [id, projectedRec] of projectedMap.entries()) {
-        const diskRecordPath = path.join(recordsDir, `${id}.json`);
-        if (!fs.existsSync(diskRecordPath)) {
-          consistencyPass = false;
-          consistencyIssues.push(`Incident #${id} exists in journal but missing from records/`);
+    const dbPath = path.join(ledgerDir, 'projection.db');
+    if (fs.existsSync(dbPath) && journalEvents.length > 0) {
+      const db = new DatabaseSync(dbPath);
+      try {
+        const rows = db.prepare('SELECT id FROM records').all();
+        const diskIds = new Set(rows.map(r => r.id));
+        for (const [id, _] of projectedMap.entries()) {
+          if (!diskIds.has(id)) {
+            consistencyPass = false;
+            consistencyIssues.push(`Incident #${id} exists in journal but missing from projection database`);
+          }
         }
+      } finally {
+        db.close();
       }
+    } else if (!fs.existsSync(dbPath) && journalEvents.length > 0) {
+      consistencyPass = false;
+      consistencyIssues.push('Projection database missing despite active journal');
     }
   } catch (err) {
     consistencyPass = false;
@@ -813,13 +829,26 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
       actionsTaken.push(`Fast-forwarded trusted checkpoint to event #${lastEvent.sequence}`);
     }
 
-    // 4. Rebuild Derived Projections in records/
+    // 4. Rebuild Derived Projections in projection.db
     const consistencyCheck = beforeDiag.healthChecks.find(c => c.id === 'storage_consistency');
     const corruptionCheck = beforeDiag.healthChecks.find(c => c.id === 'record_corruption');
     if (consistencyCheck?.status !== 'PASS' || corruptionCheck?.status !== 'PASS' || (actionsTaken.length === 0 && beforeDiag.repair.available)) {
       const projected = projectEventsToRecords(events);
-      writeProjectedRecords(resolvedLedger, projected);
-      actionsTaken.push(`Reconstructed ${projected.size} derived incident projection(s) in records/`);
+      
+      const dbPath = path.join(resolvedLedger, 'projection.db');
+      const db = new DatabaseSync(dbPath);
+      db.exec('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
+      db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
+      db.exec('BEGIN TRANSACTION');
+      const deleteAllStmt = db.prepare('DELETE FROM records');
+      deleteAllStmt.run();
+      const insertStmt = db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
+      for (const [id, record] of projected.entries()) {
+        insertStmt.run(id, JSON.stringify(record));
+      }
+      db.exec('COMMIT');
+
+      actionsTaken.push(`Reconstructed ${projected.size} derived incident projection(s) in SQLite database`);
     }
   }
 

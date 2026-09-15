@@ -175,7 +175,7 @@ describe('Product Polish & Visual Hierarchy (test/polish.test.js)', () => {
         assert.equal(codeVerify, 0);
         assert.ok(mockVerify.getStdout().includes('RECOVERY VERIFIED'));
       } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
       }
     });
   });
@@ -202,7 +202,7 @@ describe('Product Polish & Visual Hierarchy (test/polish.test.js)', () => {
         assert.ok(out.includes('TIME'));
         assert.ok(out.includes('RESULT'));
       } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
       }
     });
 
@@ -223,7 +223,7 @@ describe('Product Polish & Visual Hierarchy (test/polish.test.js)', () => {
         const out = mockHist.getStdout();
         assert.ok(out.includes('REWIND RECOVERY LEDGER'));
       } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
       }
     });
   });

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { createRecord, isValidRecord, normalizeRecordToCurrentSchema, boundOutput } from './record.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from './state.js';
 import { computeFingerprint } from './fingerprint.js';
@@ -16,7 +17,7 @@ import {
   writeCheckpoint,
   saveEvidenceArtifact
 } from './journal.js';
-import { projectEventsToRecords, applyEventToRecordMap, writeSingleProjectedRecord, writeProjectedRecords } from './projection.js';
+import { projectEventsToRecords, applyEventToRecordMap } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { analyzePatternsFromJournal } from './patterns.js';
 import { buildAgentContext } from './context.js';
@@ -45,6 +46,7 @@ export class StorageEngine {
     this.tmpDir = path.join(this.ledgerDir, 'tmp');
     this.quarantineDir = path.join(this.ledgerDir, 'quarantine');
     this.journalPath = path.join(this.ledgerDir, 'journal.jsonl');
+    this.dbPath = path.join(this.ledgerDir, 'projection.db');
 
     /** @type {Map<string, import('./record.js').IncidentRecord>} */
     this.index = new Map();
@@ -63,32 +65,50 @@ export class StorageEngine {
   init() {
     // 1. Ensure directory hierarchy exists with secure permissions (0o700)
     fs.mkdirSync(this.ledgerDir, { recursive: true, mode: 0o700 });
-    fs.mkdirSync(this.recordsDir, { recursive: true, mode: 0o700 });
     fs.mkdirSync(this.evidenceDir, { recursive: true, mode: 0o700 });
     fs.mkdirSync(this.tmpDir, { recursive: true, mode: 0o700 });
     fs.mkdirSync(this.quarantineDir, { recursive: true, mode: 0o700 });
 
     // 2. Clean orphaned temporary files in tmpDir
     this.cleanOrphanedTempFiles();
+    
+    // 3. Initialize SQLite Projection DB
+    this.initDatabase();
 
-    // 3. Fast-path initialization: check if checkpoint matches journal tail and records are valid
+    // 4. Fast-path initialization: check if checkpoint matches journal tail and records are valid
     const checkpoint = readCheckpoint(this.ledgerDir);
     const lastEvent = readLastJournalEvent(this.journalPath);
 
     const isJournalEmpty = !fs.existsSync(this.journalPath) || fs.statSync(this.journalPath).size === 0;
 
-    if (isJournalEmpty) {
-      if (fs.existsSync(this.recordsDir) && fs.readdirSync(this.recordsDir).some(f => f.endsWith('.json'))) {
-        // Legacy ledger fallback: rebuild and migrate to journal
-        this.rebuildIndex({ syncDisk: true });
+    // Legacy migration: if records/ directory exists with JSON files, rebuild into SQLite and journal.
+    let needsLegacyMigration = false;
+    try {
+      if (fs.existsSync(this.recordsDir)) {
+        const hasLegacyFiles = fs.readdirSync(this.recordsDir).some(f => f.endsWith('.json'));
+        if (hasLegacyFiles) {
+          needsLegacyMigration = true;
+        } else {
+          fs.rmSync(this.recordsDir, { recursive: true, force: true });
+        }
       }
+    } catch {}
+
+    if (needsLegacyMigration) {
+      this.rebuildIndex({ syncDisk: true });
+      fs.rmSync(this.recordsDir, { recursive: true, force: true });
+      this.initialized = true;
+      return this;
+    }
+
+    if (isJournalEmpty) {
       this.initialized = true;
       return this;
     }
 
     if (checkpoint && lastEvent && checkpoint.headSequence === lastEvent.sequence && checkpoint.headChainHash === lastEvent.chainHash) {
-      // Checkpoint is valid and strictly in sync with journal head: load from recordsDir
-      if (this.loadFromRecordsDir()) {
+      // Checkpoint is valid and strictly in sync with journal head: load from SQLite
+      if (this.loadFromDatabase()) {
         this.initialized = true;
         return this;
       }
@@ -102,64 +122,112 @@ export class StorageEngine {
   }
 
   /**
-   * Fast-path reader that loads derived incident records directly from .rewind/records/*.json in O(M).
+   * Closes the SQLite database connection safely.
+   */
+  close() {
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch (err) {
+        // Ignore errors if already closed
+      }
+    }
+  }
+
+  initDatabase() {
+    this.db = new DatabaseSync(this.dbPath);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS records (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+      );
+    `);
+    
+    // Optimize SQLite for single-node local performance
+    this.db.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+      PRAGMA temp_store = MEMORY;
+    `);
+
+    this.insertStmt = this.db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
+    this.selectAllStmt = this.db.prepare('SELECT id, data FROM records');
+    this.deleteAllStmt = this.db.prepare('DELETE FROM records');
+  }
+
+  /**
+   * Fast-path reader that loads derived incident records directly from SQLite projection DB.
    *
    * @returns {boolean} - true if records loaded successfully
    */
-  loadFromRecordsDir() {
+  loadFromDatabase() {
     this.index.clear();
     this.fingerprintIndex.clear();
     this.highestId = 0;
     this.quarantined = [];
 
-    if (!fs.existsSync(this.recordsDir)) {
-      return false;
-    }
-
-    let files = [];
     try {
-      files = fs.readdirSync(this.recordsDir);
-    } catch {
-      return false;
-    }
+      const rows = this.selectAllStmt.all();
+      if (rows.length === 0) return false;
 
-    const jsonFiles = files.filter(f => f.endsWith('.json'));
-    if (jsonFiles.length === 0) {
-      return false;
-    }
-
-    for (const file of jsonFiles) {
-      const filePath = path.join(this.recordsDir, file);
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const parsed = JSON.parse(content);
-        if (!isValidRecord(parsed)) {
-          this.quarantineFile(filePath, file, 'Schema validation failed: missing required fields');
-          continue;
-        }
-        const record = normalizeRecordToCurrentSchema(parsed);
-        const id = String(record.id);
-        this.index.set(id, record);
-
-        if (record.fingerprint) {
-          let list = this.fingerprintIndex.get(record.fingerprint);
-          if (!list) {
-            list = [];
-            this.fingerprintIndex.set(record.fingerprint, list);
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.data);
+          if (!isValidRecord(parsed)) {
+            continue;
           }
-          list.push(record);
-        }
+          const record = normalizeRecordToCurrentSchema(parsed);
+          const id = String(record.id);
+          this.index.set(id, record);
 
-        const numId = Number.parseInt(id, 10);
-        if (!Number.isNaN(numId) && numId > this.highestId) {
-          this.highestId = numId;
+          if (record.fingerprint) {
+            let list = this.fingerprintIndex.get(record.fingerprint);
+            if (!list) {
+              list = [];
+              this.fingerprintIndex.set(record.fingerprint, list);
+            }
+            list.push(record);
+          }
+
+          const numId = Number.parseInt(id, 10);
+          if (!Number.isNaN(numId) && numId > this.highestId) {
+            this.highestId = numId;
+          }
+        } catch (err) {
+          // Skip corrupt rows
         }
-      } catch (err) {
-        this.quarantineFile(filePath, file, `Malformed JSON: ${err.message}`);
       }
+      return true;
+    } catch (err) {
+      return false;
     }
+  }
 
-    return true;
+  /**
+   * Syncs the entire memory map to SQLite. Used during rebuild.
+   */
+  writeProjectedRecordsToDatabase() {
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      this.deleteAllStmt.run();
+      for (const [id, record] of this.index.entries()) {
+        this.insertStmt.run(id, JSON.stringify(record));
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /**
+   * Atomically writes a single projected incident record to SQLite.
+   *
+   * @param {import('./record.js').IncidentRecord} record
+   */
+  writeSingleProjectedRecordToDatabase(record) {
+    if (!record || !record.id) return;
+    this.insertStmt.run(String(record.id), JSON.stringify(record));
   }
 
   /**
@@ -198,7 +266,7 @@ export class StorageEngine {
       }
 
       if (syncDisk) {
-        writeSingleProjectedRecord(this.ledgerDir, updated);
+        this.writeSingleProjectedRecordToDatabase(updated);
       }
 
       return updated;
@@ -308,7 +376,7 @@ export class StorageEngine {
 
       // 3. Sync derived projection files to disk ONLY when needed (e.g. initial generation or head sequence change)
       if (needsSync) {
-        writeProjectedRecords(this.ledgerDir, this.index);
+        this.writeProjectedRecordsToDatabase();
       }
     } else if (fs.existsSync(this.recordsDir)) {
       // Legacy ledger fallback: migrate existing records to event journal
@@ -414,7 +482,7 @@ export class StorageEngine {
         }
       }
 
-      writeProjectedRecords(this.ledgerDir, replayed);
+      this.writeProjectedRecordsToDatabase();
     }
   }
 
@@ -452,7 +520,7 @@ export class StorageEngine {
       }
     }
 
-    writeProjectedRecords(this.ledgerDir, projected);
+    this.writeProjectedRecordsToDatabase();
 
     return {
       eventsReplayed: events.length,

@@ -42,7 +42,7 @@ describe('Pattern Intelligence Layer (src/storage/patterns.js)', () => {
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }

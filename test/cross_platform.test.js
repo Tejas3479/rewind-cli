@@ -19,7 +19,7 @@ describe('Cross-Platform Compatibility Suite (test/cross_platform.test.js)', () 
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }

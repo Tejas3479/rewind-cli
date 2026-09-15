@@ -37,7 +37,7 @@ describe('Concurrency, Crash & Stream Bounds (src/storage/store.js & record.js)'
       // Verify orphaned tmp file was cleaned up
       assert.equal(fs.existsSync(orphanPath), false);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -73,7 +73,7 @@ describe('Concurrency, Crash & Stream Bounds (src/storage/store.js & record.js)'
         assert.equal(all[i].id, String(i + 1));
       }
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

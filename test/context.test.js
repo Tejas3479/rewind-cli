@@ -37,7 +37,7 @@ describe('Agent-Consumption Interface (src/storage/context.js & rewind context)'
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }

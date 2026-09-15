@@ -50,7 +50,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(mock.getStdout().includes('No recorded incidents in ledger'));
       assert.equal(mock.getStderr(), '');
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -70,7 +70,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.equal(parsed.count, 0);
       assert.deepEqual(parsed.data, []);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -104,7 +104,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       const idx1 = out.indexOf('#1');
       assert.ok(idx3 < idx1, '#3 should appear before #1 in newest-first ordering');
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -129,7 +129,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(out.includes('#4'));
       assert.ok(!out.includes('#1'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -155,7 +155,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(parsed.data[0].fingerprint);
       assert.ok(parsed.data[0].startTime);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -179,7 +179,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(out.includes('Normalized Signature:'));
       assert.ok(out.includes('ENVIRONMENT & REPOSITORY:'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -207,7 +207,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(parsed.data.git);
       assert.ok(parsed.data.environment);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 

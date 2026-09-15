@@ -140,7 +140,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.equal(inc2.fingerprint, inc1.fingerprint);
       assert.ok(mock5.getStderr().includes('REGRESSION'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -180,7 +180,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.equal(record.recoveryAttempts[0].status, 'FAILED'); // Preserved in negative memory
       assert.equal(record.verification.exitCode, 44);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -204,7 +204,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.equal(code, 2);
       assert.ok(mock2.getStderr().includes('has no explicit verification command recorded'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -228,7 +228,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.equal(code4, 0);
       assert.ok(mock4.getStdout().includes('is already verified and sealed'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -255,7 +255,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.equal(code3, 0);
       assert.ok(mock3.getStdout().includes('RECOVERY VERIFIED'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -284,7 +284,7 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
       assert.notEqual(code3, 0);
       assert.ok(mock3.getStderr().includes('TIMED OUT') || mock3.getStderr().includes('timed out'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

@@ -59,7 +59,7 @@ describe('Project-Level Shared Recovery Bundles (test/bundle.test.js)', () => {
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore
     }
@@ -496,7 +496,7 @@ describe('Project-Level Shared Recovery Bundles (test/bundle.test.js)', () => {
         assert.match(out, /Imported from shared recovery bundle/);
       }
 
-      fs.rmSync(teammateDir, { recursive: true, force: true });
+      try { fs.rmSync(teammateDir, { recursive: true, force: true }); } catch {}
     });
   });
 });

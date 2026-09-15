@@ -20,7 +20,7 @@ describe('Recovery Provenance & Evidence Quality Layer (test/provenance.test.js)
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore
     }

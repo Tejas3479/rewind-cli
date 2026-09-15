@@ -72,7 +72,7 @@ describe('rewind clear', () => {
 
   afterEach(() => {
     try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup errors
     }
@@ -141,7 +141,7 @@ describe('rewind clear', () => {
   });
 
   it('handles non-existent ledger gracefully', async () => {
-    fs.rmSync(ledgerDir, { recursive: true, force: true });
+    try { fs.rmSync(ledgerDir, { recursive: true, force: true }); } catch {}
 
     const { context, getOutput } = createMockContext({
       flags: {},

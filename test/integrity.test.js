@@ -16,6 +16,7 @@ import {
 } from '../src/storage/journal.js';
 import { verifyLedgerIntegrity } from '../src/storage/integrity.js';
 import { StorageEngine } from '../src/storage/store.js';
+import { DatabaseSync } from 'node:sqlite';
 
 describe('Local History-Integrity Layer (Tamper Evidence & Event Journal)', () => {
   let tempDir;
@@ -28,7 +29,7 @@ describe('Local History-Integrity Layer (Tamper Evidence & Event Journal)', () =
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }
@@ -303,11 +304,16 @@ describe('Local History-Integrity Layer (Tamper Evidence & Event Journal)', () =
         cwd: tempDir
       });
 
-      // Manually edit records/1.json on disk
-      const recordPath = path.join(ledgerDir, 'records', '1.json');
-      const parsed = JSON.parse(fs.readFileSync(recordPath, 'utf8'));
+      storage.close();
+
+      // Manually edit records in projection database
+      const dbPath = path.join(ledgerDir, 'projection.db');
+      const db = new DatabaseSync(dbPath);
+      const row = db.prepare('SELECT data FROM records WHERE id = ?').get('1');
+      const parsed = JSON.parse(row.data);
       parsed.stderr = 'Tampered record file content';
-      fs.writeFileSync(recordPath, JSON.stringify(parsed, null, 2), 'utf8');
+      db.prepare('UPDATE records SET data = ? WHERE id = ?').run(JSON.stringify(parsed), '1');
+      db.close();
 
       const report = verifyLedgerIntegrity(ledgerDir);
 

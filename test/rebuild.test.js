@@ -16,7 +16,7 @@ describe('Projection Rebuild & Disposable Derived State (rewind rebuild)', () =>
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore cleanup error
     }
@@ -56,21 +56,27 @@ describe('Projection Rebuild & Disposable Derived State (rewind rebuild)', () =>
       cwd: tempDir
     });
 
-    // Verify records exist on disk
-    const recordsDir = path.join(ledgerDir, 'records');
-    assert.ok(fs.existsSync(path.join(recordsDir, '1.json')));
-    assert.ok(fs.existsSync(path.join(recordsDir, '2.json')));
+    // Verify records exist in database
+    const dbPath = path.join(ledgerDir, 'projection.db');
+    assert.ok(fs.existsSync(dbPath));
 
-    // Wipe out records directory completely
-    fs.rmSync(recordsDir, { recursive: true, force: true });
-    assert.strictEqual(fs.existsSync(recordsDir), false);
+    storage.close();
+
+    // Wipe out projection completely
+    try { fs.rmSync(dbPath, { force: true }); } catch {}
+    assert.strictEqual(fs.existsSync(dbPath), false);
+
+    // Need to re-init after deleting the db!
+    storage.initDatabase();
 
     // Run rebuild
     const result = storage.rebuildProjections();
 
     assert.strictEqual(result.incidentsDerived, 2);
-    assert.ok(fs.existsSync(path.join(recordsDir, '1.json')));
-    assert.ok(fs.existsSync(path.join(recordsDir, '2.json')));
+    
+    // Verify records exist in database
+    assert.ok(storage.getRecord('1'));
+    assert.ok(storage.getRecord('2'));
 
     // Check that incident 1 state is correctly recovered with attempts and verification runs
     const restored1 = storage.getRecord('1');

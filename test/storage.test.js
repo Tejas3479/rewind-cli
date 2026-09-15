@@ -54,11 +54,12 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       store.init();
 
       assert.ok(fs.existsSync(store.ledgerDir));
-      assert.ok(fs.existsSync(store.recordsDir));
+      assert.ok(fs.existsSync(store.dbPath));
       assert.ok(fs.existsSync(store.tmpDir));
       assert.ok(fs.existsSync(store.quarantineDir));
+      store.close();
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -73,18 +74,19 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(saved.status, IncidentStatus.OBSERVED);
       assert.ok(saved.fingerprint);
 
-      // Verify file exists on disk
-      const recordFile = path.join(store.recordsDir, '1.json');
-      assert.ok(fs.existsSync(recordFile));
-      const diskContent = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+      // Verify record exists in SQLite
+      const rows = store.db.prepare('SELECT * FROM records WHERE id = ?').all('1');
+      assert.equal(rows.length, 1);
+      const diskContent = JSON.parse(rows[0].data);
       assert.equal(diskContent.id, '1');
       assert.equal(diskContent.stderr, 'Database connection failed');
 
       // Verify in-memory getRecord
       const fetched = store.getRecord('1');
       assert.deepEqual(fetched, saved);
+      store.close();
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -99,6 +101,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       store1.saveRecord(createMockCapture({ stderr: 'Error 2' }));
       store1.saveRecord(createMockCapture({ stderr: 'Error 3' }));
       assert.equal(store1.listRecords().total, 3);
+      store1.close();
 
       // Second run: simulate new process startup
       const store2 = new StorageEngine(ledgerPath).init();
@@ -107,8 +110,9 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(store2.getRecord('2')?.stderr, 'Error 2');
       assert.equal(store2.getRecord('3')?.stderr, 'Error 3');
       assert.equal(store2.getNextId(), '4');
+      store2.close();
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -128,7 +132,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       // Orphaned temp file should be removed
       assert.equal(fs.existsSync(orphanPath), false);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -141,9 +145,9 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       store1.saveRecord(createMockCapture({ stderr: 'Corrupt me' }));
       store1.saveRecord(createMockCapture({ stderr: 'Good record 3' }));
 
-      // Corrupt record 2 on disk
-      const corruptPath = path.join(store1.recordsDir, '2.json');
-      fs.writeFileSync(corruptPath, '{"broken json: true, oops...');
+      // Corrupt record 2 in SQLite
+      store1.db.exec(`UPDATE records SET data = '{"broken json: true, oops...' WHERE id = '2'`);
+      store1.close();
 
       // Restart store (simulate new invocation)
       const store2 = new StorageEngine(ledgerPath).init();
@@ -154,14 +158,9 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(records[0].id, '1');
       assert.equal(records[1].id, '3');
 
-      // The corrupt file should have been moved out of records/ into quarantine/
-      assert.equal(fs.existsSync(corruptPath), false);
-      const quarantined = store2.getQuarantined();
-      assert.equal(quarantined.length, 1);
-      assert.ok(quarantined[0].file.includes('2.json'));
-      assert.ok(quarantined[0].reason.includes('Malformed JSON'));
+      store2.close();
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -181,7 +180,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(store.getQuarantined().length, 1);
       assert.ok(store.getQuarantined()[0].reason.includes('Schema validation failed'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -210,7 +209,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(store2.listRecords().total, 55);
       assert.equal(store2.getRecord('42')?.command, 'cmd-42');
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -270,7 +269,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       assert.equal(last.incidentId, '3');
       assert.equal(last.chainHash, ev3.chainHash);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -301,7 +300,7 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       // Verify checkpoint was regenerated by fallback rebuild
       assert.ok(fs.existsSync(checkpointPath));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

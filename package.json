@@ -43,7 +43,7 @@
   },
   "homepage": "https://github.com/Tejas3479/rewind-cli#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.5.0"
   },
   "keywords": [
     "cli",

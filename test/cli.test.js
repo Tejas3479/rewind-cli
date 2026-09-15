@@ -244,7 +244,7 @@ describe('CLI Integration & Behaviors (src/cli.js)', () => {
       assert.ok(mock.getStderr().includes('child_err_19'));
       assert.ok(mock.getStderr().includes('[rewind:warning]'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

@@ -91,7 +91,7 @@ describe('Multi-Attempt Recovery History (src/storage/store.js & record.js)', ()
       assert.equal(loaded.recoveryAttempts[0].status, RecoveryAttemptStatus.FAILED);
       assert.equal(loaded.recoveryAttempts[1].status, RecoveryAttemptStatus.VERIFIED);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

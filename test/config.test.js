@@ -37,7 +37,7 @@ describe('Config & Root Discovery (src/config.js)', () => {
       const discovered = findProjectRoot(nestedSubdir);
       assert.equal(discovered, projectRoot);
     } finally {
-      fs.rmSync(tmpBase, { recursive: true, force: true });
+      try { fs.rmSync(tmpBase, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -47,7 +47,7 @@ describe('Config & Root Discovery (src/config.js)', () => {
       const discovered = findProjectRoot(tmpBase);
       assert.equal(discovered, tmpBase);
     } finally {
-      fs.rmSync(tmpBase, { recursive: true, force: true });
+      try { fs.rmSync(tmpBase, { recursive: true, force: true }); } catch {}
     }
   });
 });

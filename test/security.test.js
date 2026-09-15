@@ -132,7 +132,7 @@ describe('Security & Command Execution Safety Audit (test/security.test.js)', ()
         assert.equal(result.success, true);
         assert.ok(result.stdout.includes('rewind space test-'));
       } finally {
-        fs.rmSync(tempSpaceDir, { recursive: true, force: true });
+        try { fs.rmSync(tempSpaceDir, { recursive: true, force: true }); } catch {}
       }
     });
 

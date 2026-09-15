@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { canonicalStringify, computeCanonicalDigest } from './canonical.js';
 import { GENESIS_HASH, readJournalEvents, readCheckpoint } from './journal.js';
 import { projectEventsToRecords } from './projection.js';
@@ -44,7 +45,6 @@ function cleanRecordForComparison(record) {
  * @returns {object} - Complete forensic audit report
  */
 export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalLines = 0, ledgerDir, projectedRecords }) {
-  const recordsDir = path.join(ledgerDir, 'records');
   const quarantineDir = path.join(ledgerDir, 'quarantine');
 
   const errors = [];
@@ -253,57 +253,61 @@ export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalL
 
   if (chainIntact && malformed.length === 0) {
     const projectedMap = projectedRecords || projectEventsToRecords(events);
-    let onDiskFiles = [];
-    try {
-      if (fs.existsSync(recordsDir)) {
-        onDiskFiles = fs.readdirSync(recordsDir).filter(f => f.endsWith('.json'));
-      }
-    } catch {
-      // Ignore
-    }
-
-    const onDiskIds = new Set(onDiskFiles.map(f => f.replace(/\.json$/, '')));
-
-    for (const [id, projectedRecord] of projectedMap.entries()) {
-      const recordPath = path.join(recordsDir, `${id}.json`);
-      if (!fs.existsSync(recordPath)) {
-        recordError('MISSING_PROJECTION', `Projected incident #${id} is missing from records directory on disk`, {
-          incidentId: id
-        });
-        projectionDriftCount++;
-        continue;
-      }
-
+    
+    // Validate against SQLite Database
+    const dbPath = path.join(ledgerDir, 'projection.db');
+    let db;
+    let onDiskIds = new Set();
+    
+    if (fs.existsSync(dbPath)) {
       try {
-        const diskContent = fs.readFileSync(recordPath, 'utf8');
-        const diskParsed = JSON.parse(diskContent);
-        const diskClean = cleanRecordForComparison(normalizeRecordToCurrentSchema(diskParsed));
-        const projClean = cleanRecordForComparison(projectedRecord);
+        db = new DatabaseSync(dbPath);
+        const rows = db.prepare('SELECT id, data FROM records').all();
+        
+        for (const row of rows) {
+          onDiskIds.add(row.id);
+          const projectedRecord = projectedMap.get(row.id);
+          
+          if (!projectedRecord) {
+            recordError('ORPHAN_PROJECTION', `Extraneous record "${row.id}" found in SQLite without matching journal events`, {
+              incidentId: row.id
+            });
+            projectionDriftCount++;
+            continue;
+          }
+          
+          try {
+            const diskParsed = JSON.parse(row.data);
+            const diskClean = cleanRecordForComparison(normalizeRecordToCurrentSchema(diskParsed));
+            const projClean = cleanRecordForComparison(projectedRecord);
 
-        const diskCanon = canonicalStringify(diskClean);
-        const projCanon = canonicalStringify(projClean);
+            const diskCanon = canonicalStringify(diskClean);
+            const projCanon = canonicalStringify(projClean);
 
-        if (diskCanon !== projCanon) {
-          recordError('PROJECTION_DRIFT', `Derived record #${id}.json does not match canonical replay of authoritative journal`, {
-            incidentId: id
-          });
-          projectionDriftCount++;
-        } else {
-          projectionConsistentCount++;
+            if (diskCanon !== projCanon) {
+              recordError('PROJECTION_DRIFT', `Derived record #${row.id} does not match canonical replay of authoritative journal`, {
+                incidentId: row.id
+              });
+              projectionDriftCount++;
+            } else {
+              projectionConsistentCount++;
+            }
+          } catch (err) {
+            recordError('PROJECTION_DRIFT', `Derived record #${row.id} is corrupt or unreadable: ${err.message}`, {
+              incidentId: row.id
+            });
+            projectionDriftCount++;
+          }
         }
       } catch (err) {
-        recordError('PROJECTION_DRIFT', `Derived record #${id}.json is corrupt or unreadable: ${err.message}`, {
-          incidentId: id
-        });
-        projectionDriftCount++;
+        recordError('PROJECTION_DRIFT', `Could not query SQLite projection database: ${err.message}`);
       }
     }
-
-    // Check for extraneous files on disk that aren't in projected map
-    for (const diskId of onDiskIds) {
-      if (!projectedMap.has(diskId)) {
-        recordError('ORPHAN_PROJECTION', `Extraneous file "${diskId}.json" found in records/ without matching journal events`, {
-          incidentId: diskId
+    
+    for (const id of projectedMap.keys()) {
+      if (!onDiskIds.has(id)) {
+        recordError('MISSING_PROJECTION', `Projected incident #${id} is missing from SQLite database`, {
+          incidentId: id
         });
         projectionDriftCount++;
       }

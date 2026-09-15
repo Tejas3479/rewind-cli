@@ -194,7 +194,7 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
       assert.equal(parsed.data[0].confidence, 'VERIFIED');
       assert.ok(parsed.data[0].score > 0.4);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -242,7 +242,7 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
       assert.ok(mockSearchCause.getStdout().includes('SEARCH RESULTS for "postgresql.conf limit"'));
       assert.ok(mockSearchCause.getStdout().includes('Default connection limit reached'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -256,7 +256,7 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
       assert.equal(code, 0);
       assert.ok(mock.getStdout().includes('No matching failure records found'));
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

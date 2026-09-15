@@ -46,6 +46,7 @@ export async function runCLI(
 ) {
   let parsedArgs = null;
   let styler = createStyler(false);
+  let storage = null;
 
   try {
     // 1. Argument parsing
@@ -67,7 +68,6 @@ export async function runCLI(
     styler = createStyler(colorEnabled);
 
     // 4. Initialize Local Storage Engine
-    let storage = null;
     try {
       storage = new StorageEngine(config.ledgerDir);
       storage.init();
@@ -99,8 +99,16 @@ export async function runCLI(
 
     // 6. Dispatch command
     const exitCode = await dispatch({ context });
+    
+    if (storage && typeof storage.close === 'function') {
+      try { storage.close(); } catch {}
+    }
+    
     return typeof exitCode === 'number' ? exitCode : ExitCodes.SUCCESS;
   } catch (err) {
+    if (storage && typeof storage.close === 'function') {
+      try { storage.close(); } catch {}
+    }
     const isCliError = err instanceof CliError || (err && typeof err.exitCode === 'number');
     const exitCode = isCliError && typeof err.exitCode === 'number' ? err.exitCode : ExitCodes.FAILURE;
     const isJsonMode = Boolean(parsedArgs?.flags?.json);

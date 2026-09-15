@@ -33,7 +33,7 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
       assert.equal(meta.headCommit, fakeCommit);
       assert.equal(meta.detached, false);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -55,7 +55,7 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
       assert.equal(meta.branch, 'release-1.0');
       assert.equal(meta.headCommit, fakeCommit);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -74,7 +74,7 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
       assert.equal(meta.ref, null);
       assert.equal(meta.branch, null);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -96,7 +96,7 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
       assert.equal(meta.headCommit, fakeCommit);
       assert.equal(meta.detached, true);
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 
@@ -110,7 +110,7 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
       assert.equal(meta.branch, null);
       assert.equal(meta.workingTreeState, 'unverified');
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

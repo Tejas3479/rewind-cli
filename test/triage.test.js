@@ -72,7 +72,7 @@ describe('Interactive Recovery Triage Workflow (test/triage.test.js)', () => {
 
   afterEach(() => {
     try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     } catch {
       // Ignore
     }

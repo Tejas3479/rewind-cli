@@ -43,6 +43,7 @@ export async function clearCommand({ context }) {
       return 1;
     }
 
+    storage.close(); // Important: release SQLite file lock before deleting
     clearLedger(ledgerDir);
     stdout.write(JSON.stringify({
       status: 'success',
@@ -64,6 +65,7 @@ export async function clearCommand({ context }) {
   stdout.write('\n');
 
   if (force) {
+    storage.close(); // Important: release SQLite file lock before deleting
     clearLedger(ledgerDir);
     stdout.write('  ' + s.green('\u2713') + ' Ledger cleared.\n\n');
     return 0;
@@ -86,6 +88,7 @@ export async function clearCommand({ context }) {
     return 1;
   }
 
+  storage.close(); // Important: release SQLite file lock before deleting
   clearLedger(ledgerDir);
   stdout.write('\n  ' + s.green('\u2713') + ' Ledger cleared. Run ' + s.cyan('rewind run <command>') + ' to start fresh.\n\n');
   return 0;
