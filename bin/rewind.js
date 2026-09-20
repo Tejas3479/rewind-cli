@@ -5,7 +5,7 @@ import { runCLI } from '../src/cli.js';
 // Suppress SQLite ExperimentalWarning
 const originalEmit = process.emit;
 process.emit = function (name, data, ...args) {
-  if (name === 'warning' && typeof data === 'object' && data.name === 'ExperimentalWarning' && data.message.includes('SQLite')) {
+  if (name === 'warning' && data?.name === 'ExperimentalWarning' && typeof data?.message === 'string' && data.message.includes('SQLite')) {
     return false;
   }
   return originalEmit.apply(process, [name, data, ...args]);

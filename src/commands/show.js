@@ -136,11 +136,12 @@ export async function showCommand({ context }) {
   if (stalenessReport && stalenessReport.diffs) {
     const diffs = stalenessReport.diffs;
 
-    // Git
-    const gitMsg = diffs.git.diverged
-      ? `${s.red(`historical: ${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`)} -> ${s.green(`current: ${diffs.git.currentBranch} (${diffs.git.currentCommit})`)}`
-      : `${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`;
-    stdout.write(`  ${s.dim('Git:'.padEnd(14))} ${gitMsg}\n`);
+    if (diffs.git && (record.git?.isGit || diffs.git.historicalBranch !== 'unknown')) {
+      const gitMsg = diffs.git.diverged
+        ? `${s.red(`historical: ${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`)} -> ${s.green(`current: ${diffs.git.currentBranch} (${diffs.git.currentCommit})`)}`
+        : `${diffs.git.historicalBranch} (${diffs.git.historicalCommit})`;
+      stdout.write(`  ${s.dim('Git:'.padEnd(14))} ${gitMsg}\n`);
+    }
 
     // Platform & Arch
     const platMsg = diffs.platform.changed

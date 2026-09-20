@@ -61,7 +61,10 @@ export function shouldEnableColor({ isTTY = false, env = process.env, noColorFla
   if (env.NODE_DISABLE_COLORS === '1') {
     return false;
   }
-  if (env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0' && env.FORCE_COLOR !== '') {
+  if (env.FORCE_COLOR === '0' || env.FORCE_COLOR === 'false') {
+    return false;
+  }
+  if (env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '') {
     return true;
   }
   return Boolean(isTTY);

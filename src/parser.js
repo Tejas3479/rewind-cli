@@ -151,6 +151,7 @@ export function parseArgs(rawArgs = []) {
 
   const positional = [];
   let command = null;
+  const rawCommand = rawArgs.includes('hook') ? 'hook' : rawArgs.includes('completions') ? 'completions' : null;
   let i = 0;
 
   while (i < rawArgs.length) {
@@ -159,6 +160,11 @@ export function parseArgs(rawArgs = []) {
     // If we have already identified the command as 'run', check for run flags before the target command
     if (command === 'run') {
       if (positional.length === 0) {
+        if (arg === '--help' || arg === '-h') {
+          flags.help = true;
+          i++;
+          continue;
+        }
         if (arg === '--shell' || arg === '-s') {
           flags.shell = true;
           i++;
@@ -218,14 +224,14 @@ export function parseArgs(rawArgs = []) {
     } else if (arg === '--no-color') {
       flags.noColor = true;
       i++;
-    } else if (arg === '--shell' && (command === 'completions' || command === 'hook')) {
+    } else if (arg === '--shell' && (command === 'completions' || command === 'hook' || rawCommand === 'completions' || rawCommand === 'hook')) {
       i++;
       if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
         throw new InvalidArgumentError('Option "--shell" requires a shell name (bash, zsh, powershell, fish).');
       }
       flags.shell = rawArgs[i];
       i++;
-    } else if (arg.startsWith('--shell=') && (command === 'completions' || command === 'hook')) {
+    } else if (arg.startsWith('--shell=') && (command === 'completions' || command === 'hook' || rawCommand === 'completions' || rawCommand === 'hook')) {
       flags.shell = arg.slice('--shell='.length);
       i++;
     } else if (arg === '--shell') {

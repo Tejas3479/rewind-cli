@@ -78,8 +78,8 @@ export function diffLines(oldText = "", newText = "") {
 
   if (aLines.length * bLines.length > 10_000_000) {
     return [
-      { type: 'removed', value: oldText },
-      { type: 'added', value: newText }
+      ...aLines.map(line => ({ type: 'removed', value: line })),
+      ...bLines.map(line => ({ type: 'added', value: line }))
     ];
   }
 
@@ -106,8 +106,8 @@ export function diffWords(oldText = "", newText = "") {
 
   if (aWords.length * bWords.length > 10_000_000) {
     return [
-      { type: 'removed', value: oldText },
-      { type: 'added', value: newText }
+      ...aWords.map(word => ({ type: 'removed', value: word })),
+      ...bWords.map(word => ({ type: 'added', value: word }))
     ];
   }
 

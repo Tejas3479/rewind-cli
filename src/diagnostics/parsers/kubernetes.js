@@ -9,9 +9,10 @@ const KUBE_CONNECTION_REFUSED_REGEX = /The connection to the server .* was refus
  * Parses kubectl / kubernetes errors.
  *
  * @param {string} text
+ * @param {object} [context={}]
  * @returns {import('../model.js').StructuredDiagnostic | null}
  */
-export function parseKubernetesDiagnostic(text) {
+export function parseKubernetesDiagnostic(text, context = {}) {
   if (!text || typeof text !== 'string') return null;
 
   const serverMatch = text.match(KUBE_SERVER_ERROR_REGEX);
@@ -28,7 +29,10 @@ export function parseKubernetesDiagnostic(text) {
   }
 
   const localMatch = text.match(KUBE_LOCAL_ERROR_REGEX);
-  if (localMatch) {
+  const isKubeContext = (context.command && /kubectl|k8s|minikube|helm/i.test(context.command)) ||
+    /\b(kubectl|kubernetes|cluster|pod|deployment|namespace)\b/i.test(text);
+
+  if (localMatch && isKubeContext) {
     return createStructuredDiagnostic({
       language: 'kubernetes',
       runtime: 'kubectl',

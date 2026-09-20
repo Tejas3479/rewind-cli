@@ -133,7 +133,7 @@ export async function doctorCommand({ context }) {
       errors: report.errors,
       repair: report.repair
     }) + '\n');
-    return report.status === 'CORRUPTED' || report.status === 'BLOCKED' ? 1 : 0;
+    return ['CORRUPTED', 'BLOCKED', 'DEGRADED'].includes(report.status) ? 1 : 0;
   }
 
   const statusBadge = report.status === 'HEALTHY'
@@ -197,5 +197,5 @@ export async function doctorCommand({ context }) {
   }
   stdout.write('\n');
 
-  return report.status === 'CORRUPTED' || report.status === 'BLOCKED' ? 1 : 0;
+  return ['CORRUPTED', 'BLOCKED', 'DEGRADED'].includes(report.status) ? 1 : 0;
 }

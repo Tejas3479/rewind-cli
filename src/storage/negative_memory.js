@@ -58,7 +58,7 @@ export function extractNegativeMemory(records = []) {
           }
         }
       }
-    } else if (Array.isArray(record.recoveries) && record.verification && record.verification.passed === false) {
+    } else if (Array.isArray(record.recoveries) && record.verification && (record.verification.exitCode !== 0 || record.verification.passed === false)) {
       const last = record.recoveries[record.recoveries.length - 1];
       if (last) {
         failedApproaches.push({

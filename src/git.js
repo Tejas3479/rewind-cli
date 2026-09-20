@@ -136,14 +136,14 @@ export function readGitMetadata(startDir = process.cwd()) {
       }
 
       // If loose ref not present, check packed-refs
-      if (!commit || commit.length !== 40) {
+      if (!commit || (commit.length !== 40 && commit.length !== 64)) {
         commit = resolvePackedRef(gitDir, ref);
       }
 
       return {
         isGit: true,
         gitDir,
-        headCommit: commit && /^[0-9a-f]{40}$/i.test(commit) ? commit : null,
+        headCommit: commit && /^[0-9a-f]{40}$|^[0-9a-f]{64}$/i.test(commit) ? commit : null,
         ref,
         branch,
         detached: false,
@@ -152,7 +152,7 @@ export function readGitMetadata(startDir = process.cwd()) {
     }
 
     // Case 2: Detached HEAD (direct 40-character SHA)
-    if (/^[0-9a-f]{40}$/i.test(headContent)) {
+    if (/^[0-9a-f]{40}$|^[0-9a-f]{64}$/i.test(headContent)) {
       return {
         isGit: true,
         gitDir,

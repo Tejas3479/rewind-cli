@@ -271,7 +271,7 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
     unprovenAssumptions.push('No verified remediation has been established for this failure fingerprint.');
   }
   if (stalenessReport.isStale) {
-    unprovenAssumptions.push(`Environment delta detected since recorded state: ${(stalenessReport.flags || []).join(', ')}`);
+    unprovenAssumptions.push(`Environment delta detected since recorded state: ${(stalenessReport.reasons || []).join(', ')}`);
   }
   if (conflictReport.hasConflicts) {
     unprovenAssumptions.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflicts.map(c => c.description).join(', ')}`);
@@ -281,7 +281,7 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
     warnings.push('Ledger integrity verification failed. Historical records cannot be guaranteed authentic.');
   }
   if (stalenessReport.isStale) {
-    warnings.push(`Environment delta detected since recorded state: ${(stalenessReport.flags || []).join(', ')}`);
+    warnings.push(`Environment delta detected since recorded state: ${(stalenessReport.reasons || []).join(', ')}`);
   }
   if (conflictReport.hasConflicts) {
     warnings.push(`Conflicting historical verification outcomes detected across incidents: ${conflictReport.conflicts.map(c => c.description).join(', ')}`);
@@ -356,7 +356,7 @@ export function buildAgentContext(ledgerDir, targetIdOrLatest = 'latest', option
       applicability: {
         staleness: {
           isStale: stalenessReport.isStale,
-          reasons: stalenessReport.flags || []
+          reasons: stalenessReport.reasons || []
         },
         conflicts: {
           hasConflicts: conflictReport.hasConflicts || false,

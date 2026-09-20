@@ -48,8 +48,8 @@ export function observeSafeWorkspaceChanges(rootDir) {
  * @returns {{ all: import('../storage/record.js').IncidentRecord[], unrecovered: import('../storage/record.js').IncidentRecord[] }}
  */
 export function getTriageCandidateIncidents(storage) {
-  const { records: all } = storage.listRecords({ limit: 50 });
-  const unrecovered = all.filter(r => r.status !== IncidentStatus.RECOVERED && r.status !== 'VERIFIED');
+  const { records: all } = storage.listRecords({ limit: 50, reverse: true });
+  const unrecovered = all.filter(r => r.status !== IncidentStatus.RECOVERED && r.status !== IncidentStatus.RESOLVED && r.status !== 'VERIFIED');
   return { all, unrecovered };
 }
 
