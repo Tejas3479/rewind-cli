@@ -9,7 +9,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "rewind": "./bin/rewind.js"
+    "rewind": "bin/rewind.js"
   },
   "mcp": {
     "command": "npx",
