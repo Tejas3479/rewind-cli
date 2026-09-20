@@ -1,12 +1,11 @@
 <div align="center">
-  <!-- TODO: Replace with a real banner image -->
   <h1>⏪ Rewind CLI</h1>
   <p><strong>Remember what fixed it. A verified-recovery ledger for the terminal.</strong></p>
 
   [![npm version](https://img.shields.io/npm/v/rewind-cli.svg?color=blue&style=flat-square)](https://www.npmjs.com/package/rewind-cli)
   [![CI Build](https://img.shields.io/github/actions/workflow/status/Tejas3479/rewind-cli/ci.yml?branch=main&style=flat-square)](https://github.com/Tejas3479/rewind-cli/actions)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-  [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-green.svg?style=flat-square)](https://nodejs.org)
+  [![Node.js >=22.5.0](https://img.shields.io/badge/node-%3E%3D22.5.0-green.svg?style=flat-square)](https://nodejs.org)
   [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg?style=flat-square)](https://www.npmjs.com/package/rewind-cli)
 
   <br />
@@ -182,6 +181,22 @@ The MCP server exposes 5 tools for AI agents:
 1. **Redaction Engine:** Automatically strips secrets (AWS keys, GitHub tokens, passwords) from captured stdout/stderr and environment variables.
 2. **Buffer Limits:** Strictly caps stream memory allocation to prevent resource exhaustion attacks.
 3. **No Execution Without Consent:** Rewind never automatically applies historical fixes.
+
+---
+
+## 🛠️ Troubleshooting
+
+### SQLite Experimental Warnings
+Node >= 22.5.0 includes a native SQLite engine, which Rewind uses for its ledger projection. You may occasionally see:
+```text
+ExperimentalWarning: SQLite is an experimental feature and might change at any time
+```
+This warning is completely normal and safely intercepted by Rewind's core execution loop. No action is required.
+
+### Fish Shell Compatibility
+If you use the Fish shell and completions are failing, ensure you have updated to the latest version of Rewind, as `v1.0.1+` includes proper string escaping for JSON property access inside Fish template literals.
+
+---
 
 ## 📄 License
 MIT © Tejas

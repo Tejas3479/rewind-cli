@@ -92,8 +92,8 @@ Rewind replaces an entire modern Node.js CLI toolchain with **100% standard libr
 
 ### 9. Storage Engine & Database
 * **Normally:** `sqlite3`, `better-sqlite3`, `level`, or `lowdb`
-* **Rewind uses:** Append-only authoritative event journal (`.rewind/journal.jsonl`) with trusted cryptographic checkpointing (`.rewind/checkpoint.json`), derived in-memory indices, and disposable incident projections (`.rewind/records/<id>.json`) managed with crash-safe atomic writes (`write tmp` $\rightarrow$ `fsyncSync` $\rightarrow$ `safeAtomicRenameSync`).
-* **Why:** Provides a transparent, inspectable, human-readable local ledger that requires zero C++ native addons or external database server processes. Corrupt records are isolated into `.rewind/quarantine/` with automatic startup index rebuilds.
+* **Rewind uses:** Native Node.js `node:sqlite` (introduced in v22.5.0) backed by an append-only authoritative event journal (`.rewind/journal.jsonl`) with trusted cryptographic checkpointing (`.rewind/checkpoint.json`), and derived SQLite indices managed with crash-safe transaction boundaries.
+* **Why:** Provides a transparent, inspectable local ledger coupled with lightning-fast, relational SQLite projections that require zero C++ native addons or external database server processes. Corrupt records are isolated into `.rewind/quarantine/` with automatic startup index rebuilds.
 * **Actual Code Location:** [`src/storage/store.js`](./src/storage/store.js), [`src/storage/journal.js`](./src/storage/journal.js), [`src/storage/projection.js`](./src/storage/projection.js)
 
 ---

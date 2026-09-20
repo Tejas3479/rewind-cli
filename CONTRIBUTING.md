@@ -10,19 +10,19 @@ Rewind is built with **100% standard library built-ins** and **ZERO third-party 
 
 When contributing:
 1. **Never add third-party dependencies** to `package.json` (`dependencies` and `devDependencies` must remain strictly empty `{}`).
-2. Use Node.js standard built-ins (`node:fs`, `node:path`, `node:crypto`, `node:child_process`, `node:os`, `node:readline`, `node:stream`, `node:assert`).
+2. Use Node.js standard built-ins (`node:fs`, `node:path`, `node:crypto`, `node:child_process`, `node:os`, `node:readline`, `node:stream`, `node:assert`, `node:sqlite`).
 3. Document any new standard library package replacements in [`STDLIB.md`](./STDLIB.md).
 
 ---
 
 ## 🛠️ Development Setup
 
-No `npm install` is needed. You only need **Node.js >= 20.0.0**:
+No `npm install` is needed. You only need **Node.js >= 22.5.0**:
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/Tejas3479/rewind-cli.git
-cd rewind
+cd rewind-cli
 
 # 2. Run the test suite
 npm test

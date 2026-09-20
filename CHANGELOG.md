@@ -33,15 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release for v1.0.0 Public Release.
-- 17 CLI commands: `run`, `history`, `show`, `recover`, `triage`, `verify`, `search`, `patterns`, `context`, `doctor`, `verify-integrity`, `rebuild`, `hook`, `export-shared`, `import-shared`, `help`, `version`.
+- 18 CLI commands: `run`, `history`, `show`, `recover`, `triage`, `verify`, `search`, `patterns`, `context`, `doctor`, `verify-integrity`, `rebuild`, `hook`, `export-shared`, `import-shared`, `clear`, `help`, `version`.
 - Append-only cryptographic event journal with SHA-256 chain hashing.
 - Four-layer integrity verification (event hash, chain continuity, checkpoint anchor, projection consistency).
 - Deterministic error fingerprinting with transient noise normalization.
-- Multi-language diagnostic parsers (Node.js, Python, Go, Rust).
+- Multi-language diagnostic parsers (Node.js, Python, Go, Rust, Java, AWS, Terraform, Kubernetes).
 - Trust loop state machine (OBSERVED → OPEN → RECOVERED → REGRESSED → RESOLVED).
 - Negative memory for failed recovery approaches.
 - Shell hooks for Bash, Zsh, and PowerShell.
 - Staleness evaluation and contradiction detection.
 - Agent-consumption JSON context interface.
 - Reproducible deterministic build system with dual-pass SHA-256 verification.
-- 313 tests across 90 suites, zero external dependencies.
+- 351 tests across 93 suites, zero external dependencies.

@@ -20,7 +20,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment & System Information:**
  - OS: [e.g. Windows 11, Ubuntu 24.04, macOS Sonoma]
- - Node.js Version: [e.g. 20.12.0, 22.18.0]
+ - Node.js Version: [e.g. 22.5.0, 22.18.0]
  - Rewind Version: [e.g. 0.1.0]
 
 **Diagnostic Output (if applicable)**

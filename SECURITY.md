@@ -17,7 +17,7 @@ REWIND is designed with strict security, privacy, and threat-mitigation principl
 | Threat Vector | Mitigation Strategy |
 | :--- | :--- |
 | **Command Injection in Execution** | Arguments are passed as discrete argument arrays directly to `node:child_process.spawn` with `shell: false`. No string concatenation into implicit shell strings. Metacharacters (`|`, `;`, `&`, `$()`, `>`, `<`) are treated as literal strings. |
-| **Path Traversal Attacks** | Strict integer validation (`/^\d+$/`) on all incident IDs. Absolute path resolution with `path.resolve()` on root ledger options. Null-byte and relative traversal patterns (`../`) rejected fail-closed. |
+| **Path Traversal Attacks** | Strict integer or hex-hash validation (`/^\d+$/` or `^[a-f0-9]{16}$`) on all incident IDs. Absolute path resolution with `path.resolve()` on root ledger options. Null-byte and relative traversal patterns (`../`) rejected fail-closed. |
 | **Terminal ANSI & Title Attacks** | All captured `stdout`/`stderr` text is treated as untrusted evidence. ANSI color escapes, OSC window title sequences, cursor jump sequences, control characters, and trailing orphan escape bytes are stripped before display (`sanitizeForDisplay()`). |
 | **Terminal Line Overwrite Spoofing** | Carriage-return sequences (`\r\n`, `\r`) are normalized to `\n` at the display boundary to neutralize terminal line overwrite spoofing attacks. |
 | **Resource Exhaustion (DoS)** | Memory buffer capped at 10MB per stream (`MAX_BUFFER_BYTES`) during process capture to prevent heap overflow from infinite logging loops. Extremely long lines (100,000+ chars) handled safely. |

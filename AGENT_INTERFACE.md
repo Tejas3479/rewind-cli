@@ -1,6 +1,6 @@
 # REWIND Agent-Consumption Interface Specification
 
-> **Version:** `1.1.0`  
+> **Version:** `1.0.0`  
 > **Status:** Standard Machine Interface  
 > **Runtime Dependencies:** `0` (Zero external packages, zero AI APIs, zero remote services)
 
