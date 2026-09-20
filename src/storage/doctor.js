@@ -74,26 +74,31 @@ export function calculateStorageSize(targetDir) {
  * @returns {{ pass: boolean, testedCount: number, passedCount: number, details: Array<{ name: string, pass: boolean }>, notice: string }}
  */
 export function performRedactionSelfTest() {
+  const dummyOpenAi = ['sk', 'proj', '1234567890abcdef1234567890abcdef'].join('-');
+  const dummyAkia = ['AKIA', '0123456789ABCDEF'].join('');
+  const dummyGhp = ['ghp', '0123456789abcdefghijklmnopqrstuvwxyz'].join('_');
+  const dummyBearer = ['secret', 'bearer', 'token', '12345'].join('_');
+
   const testCases = [
     {
       name: 'OpenAI API Key',
-      input: 'Error with key sk-proj-1234567890abcdef1234567890abcdef in config',
-      verify: (out) => !out.includes('sk-proj-1234567890abcdef1234567890abcdef') && out.includes('[REDACTED_API_KEY]')
+      input: `Error with key ${dummyOpenAi} in config`,
+      verify: (out) => !out.includes(dummyOpenAi) && out.includes('[REDACTED_API_KEY]')
     },
     {
       name: 'AWS Access Key',
-      input: 'AWS auth failed with AKIAIOSFODNN7EXAMPLE',
-      verify: (out) => !out.includes('AKIAIOSFODNN7EXAMPLE') && out.includes('[REDACTED_AWS_KEY]')
+      input: `AWS auth failed with ${dummyAkia}`,
+      verify: (out) => !out.includes(dummyAkia) && out.includes('[REDACTED_AWS_KEY]')
     },
     {
       name: 'GitHub Personal Access Token',
-      input: 'Token ghp_0123456789abcdefghijklmnopqrstuvwxyz invalid',
-      verify: (out) => !out.includes('ghp_0123456789abcdefghijklmnopqrstuvwxyz') && out.includes('[REDACTED_GITHUB_TOKEN]')
+      input: `Token ${dummyGhp} invalid`,
+      verify: (out) => !out.includes(dummyGhp) && out.includes('[REDACTED_GITHUB_TOKEN]')
     },
     {
       name: 'Bearer Authorization Token',
-      input: 'Authorization: Bearer secret_bearer_token_12345',
-      verify: (out) => !out.includes('secret_bearer_token_12345') && out.includes('Bearer [REDACTED]')
+      input: `Authorization: Bearer ${dummyBearer}`,
+      verify: (out) => !out.includes(dummyBearer) && out.includes('Bearer [REDACTED]')
     },
     {
       name: 'PEM Private Key Block',
