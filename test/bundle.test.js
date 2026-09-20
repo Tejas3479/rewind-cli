@@ -11,7 +11,6 @@ import {
   importRecoveryBundle,
   stripMachinePaths,
   sanitizeBundleIncident,
-  validateBundleStructure,
   CURRENT_BUNDLE_SCHEMA_VERSION,
   BUNDLE_FORMAT_IDENTIFIER
 } from '../src/sharing/bundle.js';

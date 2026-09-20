@@ -224,9 +224,10 @@ export function formatBox(title, fields, styler, tone = 'info', options = {}) {
 
   for (const field of fields) {
     const rawLabel = `${field.label}:`;
-    const labelStr = s.dim(rawLabel.padEnd(22));
+    const labelPadLen = Math.max(22, visibleLength(rawLabel));
+    const labelStr = s.dim(rawLabel.padEnd(labelPadLen));
     const valStr = field.value;
-    const contentVisLen = 22 + 1 + visibleLength(valStr);
+    const contentVisLen = labelPadLen + 1 + visibleLength(valStr);
     const padding = Math.max(0, width - 4 - contentVisLen);
 
     lines.push(`│ ${labelStr} ${valStr}${' '.repeat(padding)} │`);

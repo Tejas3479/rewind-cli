@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { StorageEngine } from '../src/storage/store.js';
-import { extractNegativeMemory } from '../src/storage/negative_memory.js';
 
 describe('Negative Memory Engine (src/storage/negative_memory.js)', () => {
   test('extracts and indexes failed recovery attempts across a failure fingerprint family', () => {

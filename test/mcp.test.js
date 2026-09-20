@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { Readable, PassThrough } from 'node:stream';
 import { parseMessage, createResponse, createErrorResponse, ErrorCodes } from '../src/mcp/protocol.js';
 import { startMcpServer } from '../src/mcp/server.js';
-import { getToolDefinitions } from '../src/mcp/tools.js';
 
 function createMockStorage() {
   const records = new Map();

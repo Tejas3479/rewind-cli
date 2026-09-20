@@ -16,8 +16,6 @@ const NODE_ERROR_TYPES = new Set([
 // Header matching: "TypeError: message" or "Error [ERR_CODE]: message"
 const NODE_HEADER_REGEX = /^(?:([A-Z][A-Za-z0-9_]*Error|Error)(?:\s*\[([A-Z0-9_]+)\])?|\[([A-Z0-9_]+)\]):\s*(.*)$/;
 
-// System error pattern: "Error: connect ECONNREFUSED 127.0.0.1:5432" or "Error: listen EADDRINUSE: address already in use :::3000"
-const SYSTEM_ERROR_REGEX = /^(?:Error:\s*)?(?:[a-zA-Z_]+\s+)?([A-Z][A-Z0-9_]{2,})(?::\s*(.*)|(?:\s+(.*)))?$/;
 
 // Stack frame line patterns:
 // 1. "    at func (/path/file.js:42:10)" or "    at async func (C:\path\file.ts:42:10)"

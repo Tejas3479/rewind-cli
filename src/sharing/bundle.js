@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { redactSecrets, sanitizeForDisplay } from '../sanitizer.js';
+import { redactSecrets } from '../sanitizer.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from '../storage/state.js';
 import { CliError } from '../errors.js';
 import { VERSION } from '../config.js';

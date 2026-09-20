@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { readJournalEvents, readCheckpoint, writeCheckpoint } from './journal.js';
+import { readJournalEvents, writeCheckpoint } from './journal.js';
 import { projectEventsToRecords } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { isValidRecord } from './record.js';

@@ -9,8 +9,7 @@ import {
   IncidentStatus,
   RecoveryAttemptStatus,
   isValidIncidentTransition,
-  isValidAttemptTransition,
-  isValidTransition
+  isValidAttemptTransition
 } from '../src/storage/state.js';
 
 function createMockIO({ env = {}, isTTY = false, cwd = process.cwd() } = {}) {

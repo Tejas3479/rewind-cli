@@ -158,7 +158,6 @@ if ($Host.UI.RawUI -and [Environment]::UserInteractive) {
 
     function global:prompt {
         $origLastExit = $global:LASTEXITCODE
-        $origSuccess = $?
 
         try {
             if ($origLastExit -and $origLastExit -ne 0) {

@@ -1,4 +1,4 @@
-import { formatJson, formatStatusBadge, formatRelativeTime } from '../formatter.js';
+import { formatJson, formatRelativeTime } from '../formatter.js';
 import { sanitizeForDisplay } from '../sanitizer.js';
 
 /**

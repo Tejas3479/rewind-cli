@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { PassThrough, Writable } from 'node:stream';
 import { StorageEngine } from '../src/storage/store.js';
-import { IncidentStatus, RecoveryAttemptStatus } from '../src/storage/state.js';
+import { IncidentStatus } from '../src/storage/state.js';
 import {
   getBashHook,
   getZshHook,

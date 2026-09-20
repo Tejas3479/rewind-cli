@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { importRecoveryBundle, DEFAULT_SHARED_BUNDLE_FILENAME } from '../sharing/bundle.js';
 import { formatJson, formatBox } from '../formatter.js';
-import { MissingArgumentError } from '../errors.js';
 
 /**
  * Handler for `rewind import-shared <file> [options]`.

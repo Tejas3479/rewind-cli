@@ -5,7 +5,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { runCLI } from '../src/cli.js';
 import { scoreRecord, searchRecords, extractTokens } from '../src/storage/search.js';
-import { IncidentStatus, RecoveryAttemptStatus } from '../src/storage/state.js';
+import { IncidentStatus } from '../src/storage/state.js';
 
 function createMockIO({ env = {}, isTTY = false, cwd = process.cwd() } = {}) {
   let stdoutData = '';

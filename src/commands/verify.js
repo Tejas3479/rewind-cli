@@ -1,5 +1,5 @@
 import { MissingArgumentError, CliError, UsageError } from '../errors.js';
-import { IncidentStatus, RecoveryAttemptStatus } from '../storage/state.js';
+import { IncidentStatus } from '../storage/state.js';
 import { executeAndCapture } from '../capture.js';
 import { tokenizeCommandLine, hasShellOperators } from '../parser.js';
 import { formatJson, formatBox } from '../formatter.js';

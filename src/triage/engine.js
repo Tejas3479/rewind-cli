@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, assertValidIncidentTransition } from '../storage/state.js';
+import { IncidentStatus, ProvenanceType, assertValidIncidentTransition } from '../storage/state.js';
 import { executeAndCapture } from '../capture.js';
 import { tokenizeCommandLine, hasShellOperators } from '../parser.js';
 import { normalizeId } from '../storage/store.js';

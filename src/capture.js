@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { readGitMetadata } from './git.js';
 import { captureSafeEnvironment } from './environment.js';
-import { sanitizeOutput, sanitizeForDisplay } from './sanitizer.js';
+import { sanitizeForDisplay } from './sanitizer.js';
 import { SpawnError } from './errors.js';
 import { parseDiagnostic } from './diagnostics/index.js';
 

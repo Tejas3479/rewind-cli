@@ -2,14 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { createRecord, isValidRecord, normalizeRecordToCurrentSchema, boundOutput } from './record.js';
+import { isValidRecord, normalizeRecordToCurrentSchema, boundOutput } from './record.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from './state.js';
 import { computeFingerprint } from './fingerprint.js';
 import { evaluateStaleness } from './staleness.js';
 import { extractNegativeMemory } from './negative_memory.js';
 import { analyzeEvidenceConflicts } from './contradiction.js';
 import {
-  GENESIS_HASH,
   appendJournalEvent,
   readJournalEvents,
   readLastJournalEvent,

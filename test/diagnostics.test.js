@@ -2,11 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseDiagnostic,
-  ConfidenceLevel,
-  parseNodeDiagnostic,
-  parsePythonDiagnostic,
-  parseRustDiagnostic,
-  parseGoDiagnostic
+  ConfidenceLevel
 } from '../src/diagnostics/index.js';
 
 describe('Structured Diagnostic Parsing Layer (src/diagnostics/)', () => {

@@ -8,8 +8,6 @@ import { StorageEngine } from '../src/storage/store.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from '../src/storage/state.js';
 import {
   getTriageCandidateIncidents,
-  getIncidentForTriage,
-  formatIncidentSummary,
   formatReviewScreen,
   recordTriageRecovery,
   executeTriageVerification

@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
-import { StorageEngine, normalizeId } from '../src/storage/store.js';
+import { StorageEngine } from '../src/storage/store.js';
 import { computeFingerprint } from '../src/storage/fingerprint.js';
-import { isValidRecord } from '../src/storage/record.js';
-import { IncidentStatus, RecoveryAttemptStatus } from '../src/storage/state.js';
+import { IncidentStatus } from '../src/storage/state.js';
 
 function createMockCapture(overrides = {}) {
   return {

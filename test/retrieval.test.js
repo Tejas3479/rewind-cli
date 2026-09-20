@@ -4,7 +4,6 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { runCLI } from '../src/cli.js';
-import { StorageEngine } from '../src/storage/store.js';
 
 function createMockIO({ env = {}, isTTY = false, cwd = process.cwd() } = {}) {
   let stdoutData = '';

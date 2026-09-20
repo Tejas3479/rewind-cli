@@ -6,9 +6,8 @@ import os from 'node:os';
 import { executeAndCapture, resolveExecutable, mapSignalToExitCode } from '../src/capture.js';
 import { safeAtomicRenameSync } from '../src/storage/projection.js';
 import { sanitizeOutput } from '../src/sanitizer.js';
-import { findGitDir, readGitMetadata } from '../src/git.js';
+import { readGitMetadata } from '../src/git.js';
 import { findProjectRoot, resolveConfig } from '../src/config.js';
-import { calculateStorageSize } from '../src/storage/doctor.js';
 
 describe('Cross-Platform Compatibility Suite (test/cross_platform.test.js)', () => {
   let tempDir;

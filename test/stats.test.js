@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { statsCommand } from '../src/commands/stats.js';
+import { createStyler } from '../src/formatter.js';
 
 describe('rewind stats command', () => {
   test('computes stats on empty ledger', async () => {
@@ -75,4 +76,50 @@ describe('rewind stats command', () => {
     assert.equal(stats.totalRecoveryAttempts, 1);
     assert.equal(stats.averageTimeToFirstRecoveryAttempt, '10s');
   });
+
+  test('renders stats in human text box mode when --json is false', async () => {
+    let stdoutData = '';
+    const context = {
+      storage: {
+        ledgerDir: '/tmp/fake',
+        listRecords: () => ({
+          total: 3,
+          records: [
+            {
+              status: 'VERIFIED',
+              fingerprint: 'fp12345',
+              startTime: '2023-01-01T00:00:00Z',
+              recoveryAttempts: [
+                {
+                  createdAt: '2023-01-01T00:00:05Z',
+                  verificationRuns: [{ exitCode: 0 }]
+                }
+              ]
+            },
+            { status: 'OPEN', fingerprint: 'fp12345', startTime: '2023-01-01T00:00:00Z' },
+            { status: 'FAILED', fingerprint: 'fp67890', startTime: '2023-01-01T00:00:00Z' }
+          ]
+        })
+      },
+      parsedArgs: { flags: { json: false } },
+      styler: createStyler(false),
+      stdout: {
+        write: (text) => { stdoutData += text; }
+      }
+    };
+
+    const exitCode = await statsCommand({ context });
+    assert.equal(exitCode, 0);
+
+    assert.match(stdoutData, /Rewind Stats/);
+    assert.match(stdoutData, /Total Incidents:\s+3/);
+    assert.match(stdoutData, /Verified Fixes:\s+1/);
+    assert.match(stdoutData, /Failed Approaches:\s+0/);
+    assert.match(stdoutData, /Recovery Attempts:\s+1/);
+    assert.match(stdoutData, /Avg Time to 1st Fix:\s+5s/);
+    assert.match(stdoutData, /Common Fingerprint:\s+fp12345/);
+    assert.match(stdoutData, /Status: OPEN:\s+1/);
+    assert.match(stdoutData, /Status: OBSERVED:\s+0/);
+  });
 });
+

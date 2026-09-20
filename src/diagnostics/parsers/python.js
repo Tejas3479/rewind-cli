@@ -9,8 +9,6 @@ const PYTHON_FRAME_REGEX = /^\s*File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+in\s+(.+)
 // Final exception line pattern: 'ValueError: invalid literal' or 'IndexError: list index out of range'
 const PYTHON_EXCEPTION_REGEX = /^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Warning|Exit|Interrupt|Fault|StopIteration|KeyError|IndexError|TypeError|ValueError|NameError|AttributeError|ImportError|ModuleNotFoundError))(?::\s*(.*))?$/;
 
-// Syntax error header without traceback: '  File "test.py", line 1'
-const SYNTAX_ERROR_LOCATION = /^\s*File\s+"([^"]+)",\s+line\s+(\d+)/;
 
 /**
  * Attempts to parse raw process output into a Python StructuredDiagnostic.

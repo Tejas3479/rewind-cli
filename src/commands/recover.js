@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { MissingArgumentError, CliError, UsageError } from '../errors.js';
-import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, assertValidIncidentTransition } from '../storage/state.js';
+import { IncidentStatus, ProvenanceType, assertValidIncidentTransition } from '../storage/state.js';
 import { formatJson, formatStatusBadge } from '../formatter.js';
 import { sanitizeForDisplay } from '../sanitizer.js';
 import { normalizeId } from '../storage/store.js';

@@ -1,6 +1,5 @@
-import { exportRecoveryBundle, DEFAULT_SHARED_BUNDLE_FILENAME } from '../sharing/bundle.js';
+import { exportRecoveryBundle } from '../sharing/bundle.js';
 import { formatJson, formatBox } from '../formatter.js';
-import { sanitizeForDisplay } from '../sanitizer.js';
 
 /**
  * Handler for `rewind export-shared [options]`.

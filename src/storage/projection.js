@@ -291,17 +291,3 @@ export function safeAtomicRenameSync(sourcePath, destPath) {
     }
   }
 }
-
-/**
- * Reconstructs all derived incident files in .rewind/records/ from the projected state.
- *
- * Invariants:
- * 1. .rewind/records/ is strictly derived and rebuildable.
- * 2. Writes atomically using tmp file and fsync before rename.
- * 3. Never mutates or alters journal.jsonl.
- *
- * @param {string} ledgerDir - Path to .rewind
- * @param {Map<string, import('./record.js').IncidentRecord>} projectedRecords
- * @returns {{ writtenCount: number, removedCount: number }}
- */
-

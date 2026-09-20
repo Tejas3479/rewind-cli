@@ -5,7 +5,6 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { StorageEngine } from '../src/storage/store.js';
-import { appendJournalEvent } from '../src/storage/journal.js';
 import {
   analyzePatternsFromJournal,
   PatternTypes,

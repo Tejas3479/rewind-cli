@@ -1,7 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeFingerprint } from '../src/storage/fingerprint.js';
-import { normalizeErrorText } from '../src/storage/normalizer.js';
 
 describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.js)', () => {
   test('identical errors produce identical fingerprints', () => {

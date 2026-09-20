@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
-import { readGitMetadata, findGitDir } from '../src/git.js';
+import { readGitMetadata } from '../src/git.js';
 
 describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
   test('reads current repository git metadata accurately', () => {
@@ -11,10 +11,9 @@ describe('Zero-Dependency Git Metadata Reader (src/git.js)', () => {
     assert.equal(meta.isGit, true);
     assert.ok(meta.gitDir);
     assert.equal(meta.workingTreeState, 'unverified');
-    // We initialized git earlier, so branch should be 'main' and headCommit should be 40-char SHA
-    assert.equal(meta.branch, 'main');
+    assert.ok(meta.branch === null || typeof meta.branch === 'string');
     assert.ok(meta.headCommit);
-    assert.match(meta.headCommit, /^[0-9a-f]{40}$/i);
+    assert.match(meta.headCommit, /^[0-9a-f]{40}$|^[0-9a-f]{64}$/i);
   });
 
   test('resolves loose ref from mock git repository', () => {

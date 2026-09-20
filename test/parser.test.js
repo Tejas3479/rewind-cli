@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs } from '../src/parser.js';
+import { parseArgs, hasShellOperators, tokenizeCommandLine } from '../src/parser.js';
 import { InvalidArgumentError } from '../src/errors.js';
 
 describe('Argument Parser (src/parser.js)', () => {
@@ -107,4 +107,162 @@ describe('Argument Parser (src/parser.js)', () => {
     assert.throws(() => parseArgs(['verify', '1', '--timeout', '0']), InvalidArgumentError);
     assert.throws(() => parseArgs(['verify', '1', '--timeout', 'invalid']), InvalidArgumentError);
   });
+
+  describe('hasShellOperators', () => {
+    test('detects unquoted shell control operators', () => {
+      assert.equal(hasShellOperators('npm test && npm run build'), true);
+      assert.equal(hasShellOperators('cargo check || cargo build'), true);
+      assert.equal(hasShellOperators('echo a; echo b'), true);
+      assert.equal(hasShellOperators('cat file | grep error'), true);
+      assert.equal(hasShellOperators('run_task &'), true);
+      assert.equal(hasShellOperators('echo test > out.log'), true);
+      assert.equal(hasShellOperators('cat < input.txt'), true);
+    });
+
+    test('ignores operators inside single or double quotes', () => {
+      assert.equal(hasShellOperators('echo "a && b"'), false);
+      assert.equal(hasShellOperators("echo 'a || b'"), false);
+      assert.equal(hasShellOperators('git commit -m "feat: a & b > c; d | e"'), false);
+    });
+
+    test('detects operators outside when quotes are escaped', () => {
+      assert.equal(hasShellOperators('echo \\"a && b\\"'), true);
+      assert.equal(hasShellOperators("echo \\'a || b\\'"), true);
+    });
+
+    test('handles empty or non-string inputs safely', () => {
+      assert.equal(hasShellOperators(''), false);
+      assert.equal(hasShellOperators(null), false);
+      assert.equal(hasShellOperators(undefined), false);
+    });
+  });
+
+  describe('tokenizeCommandLine', () => {
+    test('tokenizes simple commands separated by spaces', () => {
+      assert.deepEqual(tokenizeCommandLine('npm run build --prod'), ['npm', 'run', 'build', '--prod']);
+    });
+
+    test('respects single and double quotes containing spaces', () => {
+      assert.deepEqual(
+        tokenizeCommandLine('git commit -m "feat: first commit" --author=\'Jane Doe\''),
+        ['git', 'commit', '-m', 'feat: first commit', '--author=Jane Doe']
+      );
+    });
+
+    test('preserves escaped quotes inside arguments', () => {
+      assert.deepEqual(
+        tokenizeCommandLine('node -e "console.log(\\"hello\\")"'),
+        ['node', '-e', 'console.log("hello")']
+      );
+    });
+
+    test('handles empty, null, or multiple whitespace delimiters cleanly', () => {
+      assert.deepEqual(tokenizeCommandLine(''), []);
+      assert.deepEqual(tokenizeCommandLine(null), []);
+      assert.deepEqual(tokenizeCommandLine('   cargo    build    --release   '), ['cargo', 'build', '--release']);
+    });
+  });
+
+  describe('20+ CLI Flags & Subcommand Options', () => {
+    test('parses and validates --offset flag', () => {
+      assert.equal(parseArgs(['history', '--offset', '5']).flags.offset, 5);
+      assert.equal(parseArgs(['history', '--offset=10']).flags.offset, 10);
+      assert.equal(parseArgs(['history', '--offset', '0']).flags.offset, 0);
+
+      assert.throws(() => parseArgs(['history', '--offset', '-1']), InvalidArgumentError);
+      assert.throws(() => parseArgs(['history', '--offset', 'abc']), InvalidArgumentError);
+      assert.throws(() => parseArgs(['history', '--offset']), InvalidArgumentError);
+    });
+
+    test('parses --cause and -c flags', () => {
+      assert.equal(parseArgs(['recover', '1', '--cause', 'Port busy']).flags.cause, 'Port busy');
+      assert.equal(parseArgs(['recover', '1', '-c', 'Missing dependency']).flags.cause, 'Missing dependency');
+      assert.equal(parseArgs(['recover', '1', '--cause=DB down']).flags.cause, 'DB down');
+      assert.throws(() => parseArgs(['recover', '1', '--cause']), InvalidArgumentError);
+    });
+
+    test('parses --change, --fix, and -m flags', () => {
+      assert.equal(parseArgs(['recover', '1', '--change', 'Updated port']).flags.change, 'Updated port');
+      assert.equal(parseArgs(['recover', '1', '--fix', 'Installed pkg']).flags.change, 'Installed pkg');
+      assert.equal(parseArgs(['recover', '1', '-m', 'Migrated db']).flags.change, 'Migrated db');
+      assert.equal(parseArgs(['recover', '1', '--change=Restarted']).flags.change, 'Restarted');
+      assert.throws(() => parseArgs(['recover', '1', '--change']), InvalidArgumentError);
+    });
+
+    test('parses --verify-cmd and --verify flags', () => {
+      assert.equal(parseArgs(['recover', '1', '--verify-cmd', 'npm test']).flags.verifyCmd, 'npm test');
+      assert.equal(parseArgs(['recover', '1', '--verify', 'pytest']).flags.verifyCmd, 'pytest');
+      assert.equal(parseArgs(['recover', '1', '--verify-cmd=cargo test']).flags.verifyCmd, 'cargo test');
+      assert.throws(() => parseArgs(['recover', '1', '--verify-cmd']), InvalidArgumentError);
+    });
+
+    test('parses --fingerprint and -f flags', () => {
+      assert.equal(parseArgs(['search', '--fingerprint', 'abc12345']).flags.fingerprint, 'abc12345');
+      assert.equal(parseArgs(['search', '-f', 'deadbeef']).flags.fingerprint, 'deadbeef');
+      assert.equal(parseArgs(['search', '--fingerprint=cafebabe']).flags.fingerprint, 'cafebabe');
+      assert.throws(() => parseArgs(['search', '--fingerprint']), InvalidArgumentError);
+    });
+
+    test('parses boolean diagnostic flags: --explain, --repair, --dry-run, --fixed', () => {
+      const res = parseArgs(['doctor', '--explain', '--repair', '--dry-run', '--fixed']);
+      assert.equal(res.flags.explain, true);
+      assert.equal(res.flags.repair, true);
+      assert.equal(res.flags.dryRun, true);
+      assert.equal(res.flags.fixed, true);
+    });
+
+    test('parses hook recording flags: --cmd, --exit, --duration, --cwd, --stderr', () => {
+      const res = parseArgs([
+        'hook', 'record',
+        '--cmd', 'npm test',
+        '--exit', '1',
+        '--duration', '150',
+        '--cwd', '/workspace',
+        '--stderr', 'Error text'
+      ]);
+      assert.equal(res.flags.cmd, 'npm test');
+      assert.equal(res.flags.exit, 1);
+      assert.equal(res.flags.duration, 150);
+      assert.equal(res.flags.cwd, '/workspace');
+      assert.equal(res.flags.stderr, 'Error text');
+
+      // Test negative exit code and equals syntax
+      const res2 = parseArgs(['hook', 'record', '--exit=-1', '--duration=0']);
+      assert.equal(res2.flags.exit, -1);
+      assert.equal(res2.flags.duration, 0);
+
+      assert.throws(() => parseArgs(['hook', 'record', '--duration', '-5']), InvalidArgumentError);
+      assert.throws(() => parseArgs(['hook', 'record', '--exit', 'not_a_num']), InvalidArgumentError);
+    });
+
+    test('parses export/import flags: --output, -o, --include-unverified, --all, --overwrite', () => {
+      const res1 = parseArgs(['export-shared', '--output', './bundle.json', '--include-unverified', '--overwrite']);
+      assert.equal(res1.flags.output, './bundle.json');
+      assert.equal(res1.flags.includeUnverified, true);
+      assert.equal(res1.flags.overwrite, true);
+
+      const res2 = parseArgs(['export-shared', '-o', './bundle.json', '--all']);
+      assert.equal(res2.flags.output, './bundle.json');
+      assert.equal(res2.flags.includeUnverified, true);
+
+      assert.throws(() => parseArgs(['export-shared', '--output']), InvalidArgumentError);
+    });
+
+    test('parses common modifier flags: --force, --yes, -y, --quiet, -q', () => {
+      assert.equal(parseArgs(['clear', '--force']).flags.force, true);
+      assert.equal(parseArgs(['clear', '--yes']).flags.force, true);
+      assert.equal(parseArgs(['clear', '-y']).flags.force, true);
+      assert.equal(parseArgs(['clear', '--quiet']).flags.quiet, true);
+      assert.equal(parseArgs(['clear', '-q']).flags.quiet, true);
+    });
+
+    test('parses run command with -- separator and runner options', () => {
+      const res = parseArgs(['run', '--shell', '--root', '/custom', '--', 'echo', '--not-a-flag']);
+      assert.equal(res.command, 'run');
+      assert.equal(res.flags.shell, true);
+      assert.equal(res.flags.root, '/custom');
+      assert.deepEqual(res.positional, ['echo', '--not-a-flag']);
+    });
+  });
 });
+

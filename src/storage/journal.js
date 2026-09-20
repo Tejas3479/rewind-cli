@@ -437,7 +437,6 @@ export function appendJournalEvent(ledgerDir, eventInput, options = {}) {
     }
 
     // 5. Update local trusted checkpoint
-    const currentCheckpoint = readCheckpoint(ledgerDir);
     const eventCount = sequence;
 
     writeCheckpoint(ledgerDir, {

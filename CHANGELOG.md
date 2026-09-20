@@ -44,4 +44,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staleness evaluation and contradiction detection.
 - Agent-consumption JSON context interface.
 - Reproducible deterministic build system with dual-pass SHA-256 verification.
-- 351 tests across 93 suites, zero external dependencies.
+- 391 tests across 101 suites, zero external dependencies.

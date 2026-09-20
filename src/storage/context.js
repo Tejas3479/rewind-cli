@@ -3,7 +3,6 @@ import { readJournalEvents } from './journal.js';
 import { projectEventsToRecords } from './projection.js';
 import { verifyLedgerIntegrityFromEvents } from './integrity.js';
 import { evaluateStaleness } from './staleness.js';
-import { extractNegativeMemory } from './negative_memory.js';
 import { analyzeEvidenceConflicts } from './contradiction.js';
 import { analyzePatternsFromEvents } from './patterns.js';
 import { searchRecords } from './search.js';

@@ -76,22 +76,6 @@ export function extractTokens(text) {
   return tokens;
 }
 
-/**
- * Calculates set intersection.
- *
- * @param {Set<string>} setA
- * @param {Set<string>} setB
- * @returns {Set<string>}
- */
-function intersection(setA, setB) {
-  const result = new Set();
-  for (const elem of setA) {
-    if (setB.has(elem)) {
-      result.add(elem);
-    }
-  }
-  return result;
-}
 
 /**
  * @typedef {object} SearchMatch

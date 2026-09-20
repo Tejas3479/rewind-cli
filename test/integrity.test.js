@@ -8,9 +8,7 @@ import { canonicalStringify, computeCanonicalDigest, CanonicalizationError } fro
 import {
   GENESIS_HASH,
   appendJournalEvent,
-  readJournalEvents,
   readCheckpoint,
-  writeCheckpoint,
   acquireJournalLock,
   LockContentionError
 } from '../src/storage/journal.js';
