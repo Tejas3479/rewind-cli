@@ -116,6 +116,8 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       assert.match(script, /function global:prompt/);
       assert.match(script, /\$origLastExit = \$global:LASTEXITCODE/);
       assert.match(script, /\$global:LASTEXITCODE = \$origLastExit/);
+      assert.match(script, /--cmd "\$rawCmd"/);
+      assert.match(script, /--duration \$durationMs/);
     });
 
     test('getInstallationOverview formats comprehensive setup guide', () => {

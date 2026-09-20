@@ -165,7 +165,11 @@ if ($Host.UI.RawUI -and [Environment]::UserInteractive) {
                 if ($lastHistory -and $lastHistory.CommandLine) {
                     $rawCmd = $lastHistory.CommandLine.Trim()
                     if ($rawCmd -and -not ($rawCmd.StartsWith("rewind") -or $rawCmd.Contains("bin/rewind") -or $rawCmd.Contains("bin\\rewind"))) {
-                        & rewind hook record --exit $origLastExit --cmd $rawCmd 2>$null
+                        $durationMs = 0
+                        if ($lastHistory.StartExecutionTime -and $lastHistory.EndExecutionTime) {
+                            $durationMs = [int][Math]::Max(0, ($lastHistory.EndExecutionTime - $lastHistory.StartExecutionTime).TotalMilliseconds)
+                        }
+                        & rewind hook record --exit $origLastExit --cmd "$rawCmd" --duration $durationMs 2>$null
                     }
                 }
             }

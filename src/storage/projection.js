@@ -1,7 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from './state.js';
+import {
+  IncidentStatus,
+  RecoveryAttemptStatus,
+  ProvenanceType,
+  EvidenceQuality,
+  assertValidIncidentTransition,
+  assertValidAttemptTransition
+} from './state.js';
 import { normalizeRecordToCurrentSchema } from './record.js';
 
 export const PROJECTION_SCHEMA_VERSION = 1;
@@ -99,6 +106,8 @@ export function applyEventToRecordMap(incidents, event) {
       const existing = incidents.get(id);
       if (!existing) break;
 
+      assertValidIncidentTransition(existing.status, IncidentStatus.OPEN, id);
+
       const payload = event.payload || {};
       const currentAttempts = Array.isArray(existing.recoveryAttempts) ? [...existing.recoveryAttempts] : [];
       const attemptId = payload.attemptId || (currentAttempts.length + 1);
@@ -149,6 +158,7 @@ export function applyEventToRecordMap(incidents, event) {
 
       if (attemptIndex !== -1) {
         const targetAttempt = { ...currentAttempts[attemptIndex] };
+        assertValidAttemptTransition(targetAttempt.status, RecoveryAttemptStatus.FIXED, targetAttemptId);
         targetAttempt.status = RecoveryAttemptStatus.FIXED;
         targetAttempt.evidenceQuality = EvidenceQuality.UNVERIFIED;
         if (payload.observedChanges) {
@@ -200,7 +210,11 @@ export function applyEventToRecordMap(incidents, event) {
           provenance: payload.provenance || ProvenanceType.DIRECTLY_VERIFIED
         };
 
-        targetAttempt.status = isPassed ? RecoveryAttemptStatus.VERIFIED : RecoveryAttemptStatus.FAILED;
+        if (targetAttempt.status !== RecoveryAttemptStatus.VERIFIED) {
+          const targetAttemptStatus = isPassed ? RecoveryAttemptStatus.VERIFIED : RecoveryAttemptStatus.FAILED;
+          assertValidAttemptTransition(targetAttempt.status, targetAttemptStatus, targetAttemptId);
+          targetAttempt.status = targetAttemptStatus;
+        }
         targetAttempt.evidenceQuality = isPassed ? EvidenceQuality.DIRECT : EvidenceQuality.DIRECT;
         if (isPassed) {
           targetAttempt.isExternal = false;
@@ -208,7 +222,8 @@ export function applyEventToRecordMap(incidents, event) {
         targetAttempt.verificationRuns = [...currentRuns, newRun];
         currentAttempts[attemptIndex] = targetAttempt;
 
-        const updatedIncidentStatus = isPassed ? IncidentStatus.RECOVERED : existing.status;
+        const updatedIncidentStatus = (isPassed || existing.status === IncidentStatus.RECOVERED) ? IncidentStatus.RECOVERED : existing.status;
+        assertValidIncidentTransition(existing.status, updatedIncidentStatus, id);
 
         const updated = {
           ...existing,
@@ -229,6 +244,8 @@ export function applyEventToRecordMap(incidents, event) {
     case 'incident.resolved': {
       const existing = incidents.get(id);
       if (!existing) break;
+
+      assertValidIncidentTransition(existing.status, IncidentStatus.RESOLVED, id);
 
       const updated = {
         ...existing,

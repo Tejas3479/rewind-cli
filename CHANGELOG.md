@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-21
+
+### Added
+- **PowerShell Duration Tracking**: PowerShell prompt hook now computes command execution duration via `$lastHistory` and passes `--duration $durationMs`.
+- **Projection State Machine Invariants**: Deterministic journal projection now verifies legal state transitions (`assertValidIncidentTransition` & `assertValidAttemptTransition`) in `src/storage/projection.js`.
+- **CI Test & Build Verification**: Automated reproducible build verification and expanded syntax linting (`src`, `bin`, `scripts`, `test`) in GitHub Actions CI workflow.
+
+### Fixed
+- **PowerShell Argument Quoting**: Quoted `--cmd "$rawCmd"` in PowerShell hook template to prevent word splitting on commands containing spaces or quotes.
+- **Kubernetes Connection Error Disambiguation**: Restriced `KUBE_CONNECTION_REFUSED_REGEX` in `src/diagnostics/parsers/kubernetes.js` to require Kubernetes context or kubectl signature prompts, avoiding false positives on generic application connection errors.
+- **Proof Generator Guard**: `scripts/update-proofs.js` now exits non-zero if tests fail or are cancelled, preventing stale or invalid metrics from being committed to `DEPENDENCY_PROOF.md`.
+- **Credential Scanning Safety**: Dynamically assembled dummy tokens in test fixtures and self-test diagnostics to eliminate false-positive secret scanning alerts.
+
 ## [1.0.0] - 2026-09-12
 
 ### Added
@@ -44,4 +57,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staleness evaluation and contradiction detection.
 - Agent-consumption JSON context interface.
 - Reproducible deterministic build system with dual-pass SHA-256 verification.
-- 391 tests across 101 suites, zero external dependencies.
+- 393 tests across 101 suites, zero external dependencies.

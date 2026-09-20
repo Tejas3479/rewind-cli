@@ -41,8 +41,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run build script
-        run: node scripts/build.js
+      - name: Run reproducible build verification
+        run: npm run verify:build
+
+      - name: Verify committed distribution artifact is in sync
+        run: git diff --exit-code dist/rewind.js
 
   lint:
     name: Syntax Check
@@ -57,6 +60,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check syntax for src and bin
+      - name: Check syntax for src, bin, scripts, test
         run: |
-          find src bin -type f -name "*.js" -exec node --check {} +
+          find src bin scripts test -type f -name "*.js" -exec node --check {} +

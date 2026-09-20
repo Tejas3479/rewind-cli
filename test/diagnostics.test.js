@@ -306,6 +306,20 @@ RuntimeError: Request failed due to DB`;
     assert.equal(diag.message, 'pods "foo" not found');
   });
 
+  test('parses Kubernetes connection refused errors with kubectl signature or context', () => {
+    const stderr = 'The connection to the server 127.0.0.1:6443 was refused - did you specify the right host or port?';
+    const diag = parseDiagnostic(stderr);
+    assert.ok(diag);
+    assert.equal(diag.language, 'kubernetes');
+    assert.equal(diag.errorType, 'ConnectionError');
+    assert.equal(diag.errorCode, 'ECONNREFUSED');
+
+    // Generic server connection refused without k8s context should not match kubernetes
+    const nonKube = 'The connection to the server redis-cache was refused';
+    const diagNonKube = parseDiagnostic(nonKube);
+    assert.notEqual(diagNonKube?.language, 'kubernetes');
+  });
+
   test('parses Java exceptions with stack trace', () => {
     const stderr = `Exception in thread "main" java.lang.NullPointerException: Object is null
 	at com.example.MyClass.myMethod(MyClass.java:42)

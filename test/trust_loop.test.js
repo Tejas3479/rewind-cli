@@ -11,6 +11,7 @@ import {
   isValidIncidentTransition,
   isValidAttemptTransition
 } from '../src/storage/state.js';
+import { applyEventToRecordMap } from '../src/storage/projection.js';
 
 function createMockIO({ env = {}, isTTY = false, cwd = process.cwd() } = {}) {
   let stdoutData = '';
@@ -285,5 +286,80 @@ describe('Trust Loop State Machine & Verification (src/storage/state.js)', () =>
     } finally {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
+  });
+
+  test('applyEventToRecordMap enforces state transition invariants and rejects illegal transitions', () => {
+    const map = new Map();
+    // 1. Initial observation
+    applyEventToRecordMap(map, {
+      sequence: 1,
+      type: 'failure.observed',
+      incidentId: '42',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      payload: { command: 'node test.js' }
+    });
+    assert.equal(map.get('42').status, IncidentStatus.OBSERVED);
+
+    // 2. Propose recovery -> OPEN
+    applyEventToRecordMap(map, {
+      sequence: 2,
+      type: 'recovery.proposed',
+      incidentId: '42',
+      timestamp: '2026-01-01T00:01:00.000Z',
+      payload: { attemptId: 1, change: 'fixed bug' }
+    });
+    assert.equal(map.get('42').status, IncidentStatus.OPEN);
+
+    // 3. Mark FIXED
+    applyEventToRecordMap(map, {
+      sequence: 3,
+      type: 'recovery.fixed',
+      incidentId: '42',
+      timestamp: '2026-01-01T00:02:00.000Z',
+      payload: { attemptId: 1 }
+    });
+    assert.equal(map.get('42').recoveryAttempts[0].status, RecoveryAttemptStatus.FIXED);
+
+    // 4. Verify -> VERIFIED & RECOVERED
+    applyEventToRecordMap(map, {
+      sequence: 4,
+      type: 'verification.run',
+      incidentId: '42',
+      timestamp: '2026-01-01T00:03:00.000Z',
+      payload: { attemptId: 1, exitCode: 0 }
+    });
+    assert.equal(map.get('42').status, IncidentStatus.RECOVERED);
+    assert.equal(map.get('42').recoveryAttempts[0].status, RecoveryAttemptStatus.VERIFIED);
+
+    // 5. Attempt illegal transition on sealed attempt (trying to mark a VERIFIED attempt as FIXED)
+    assert.throws(() => {
+      applyEventToRecordMap(map, {
+        sequence: 5,
+        type: 'recovery.fixed',
+        incidentId: '42',
+        timestamp: '2026-01-01T00:04:00.000Z',
+        payload: { attemptId: 1 }
+      });
+    }, /Illegal recovery attempt state transition/);
+
+    // 6. Resolve incident -> RESOLVED
+    applyEventToRecordMap(map, {
+      sequence: 6,
+      type: 'incident.resolved',
+      incidentId: '42',
+      timestamp: '2026-01-01T00:05:00.000Z'
+    });
+    assert.equal(map.get('42').status, IncidentStatus.RESOLVED);
+
+    // 7. Attempt illegal incident transition: RESOLVED directly to RECOVERED without re-opening
+    assert.throws(() => {
+      applyEventToRecordMap(map, {
+        sequence: 7,
+        type: 'verification.run',
+        incidentId: '42',
+        timestamp: '2026-01-01T00:06:00.000Z',
+        payload: { attemptId: 1, exitCode: 0 }
+      });
+    }, /Illegal incident state transition/);
   });
 });

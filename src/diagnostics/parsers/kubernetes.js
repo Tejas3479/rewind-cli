@@ -44,7 +44,8 @@ export function parseKubernetesDiagnostic(text, context = {}) {
   }
 
   const connMatch = text.match(KUBE_CONNECTION_REFUSED_REGEX);
-  if (connMatch) {
+  const isKubeConn = isKubeContext || /did you specify the right host or port/i.test(text);
+  if (connMatch && isKubeConn) {
     return createStructuredDiagnostic({
       language: 'kubernetes',
       runtime: 'kubectl',

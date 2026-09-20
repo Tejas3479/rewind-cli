@@ -32,6 +32,11 @@ if (!metrics.tests) {
   process.exit(1);
 }
 
+if (Number(metrics.fail || 0) > 0 || Number(metrics.cancelled || 0) > 0) {
+  console.error(`Tests failed (${metrics.fail || 0} failed, ${metrics.cancelled || 0} cancelled). Refusing to update proof.`);
+  process.exit(1);
+}
+
 console.log("Extracted metrics:", metrics);
 
 let proofContent = fs.readFileSync(proofFile, "utf8");
