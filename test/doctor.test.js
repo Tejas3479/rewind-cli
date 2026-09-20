@@ -98,8 +98,8 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       fs.mkdirSync(ledgerDir, { recursive: true });
       assert.strictEqual(checkActiveLock(ledgerDir).isLocked, false);
 
-      const lockPath = path.join(ledgerDir, 'lock');
-      fs.writeFileSync(lockPath, 'active-lock-pid-1234', 'utf8');
+      const lockPath = path.join(ledgerDir, 'journal.lock');
+      fs.writeFileSync(lockPath, 'mock-pid-1234', 'utf8');
       const lockRes = checkActiveLock(ledgerDir);
       assert.strictEqual(lockRes.isLocked, true);
       assert.ok(lockRes.details.includes('Lockfile exists'));
@@ -268,7 +268,7 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       storage.init();
 
       // Create lockfile
-      fs.writeFileSync(path.join(ledgerDir, 'lock'), 'active', 'utf8');
+      fs.writeFileSync(path.join(ledgerDir, 'journal.lock'), 'active', 'utf8');
 
       const report = runDoctorDiagnostics(ledgerDir, { rootDir: tempDir });
       const lockCheck = report.healthChecks.find(c => c.id === 'active_lock');

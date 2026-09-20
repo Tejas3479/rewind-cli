@@ -25,7 +25,7 @@ _rewind() {
 
   case $prev in
     show|recover|verify)
-      local ids=$(rewind history --json 2>/dev/null | grep -o '"id":"[^"]*"' | cut -d'"' -f4 2>/dev/null)
+      local ids=$(rewind history --json 2>/dev/null | grep -o '"id":[ ]*"[^"]*"' | cut -d'"' -f4 2>/dev/null)
       COMPREPLY=( $(compgen -W "$ids" -- "$cur") )
       return 0
       ;;
@@ -109,7 +109,7 @@ _rewind() {
       case $words[1] in
         show|recover|verify)
           local -a ids
-          ids=($(rewind history --json 2>/dev/null | grep -o '"id":"[^"]*"' | cut -d'"' -f4 2>/dev/null))
+          ids=($(rewind history --json 2>/dev/null | grep -o '"id":[ ]*"[^"]*"' | cut -d'"' -f4 2>/dev/null))
           _describe -t ids 'incident ids' ids
           ;;
         hook)
@@ -155,7 +155,7 @@ $scriptblock = {
     elseif ($command -in @('show', 'recover', 'verify')) {
         try {
             $json = rewind history --json 2>$null | ConvertFrom-Json
-            $ids = $json.id
+            $ids = @($json.data | ForEach-Object { $_.id })
             $ids | Where-Object { $_ -like "$wordToComplete*" }
         } catch {}
     }
@@ -212,7 +212,7 @@ complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "completion
 complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "clear" -d "Clear data"
 
 # Dynamic completions for show, recover, verify
-complete -c rewind -n "__fish_seen_subcommand_from show recover verify" -a "(rewind history --json 2>/dev/null | grep -o '\\\"id\\\":\\\"[^\\\"]*\\\"' | cut -d'\\\"' -f4 2>/dev/null)"
+complete -c rewind -n "__fish_seen_subcommand_from show recover verify" -a "(rewind history --json 2>/dev/null | grep -o '\\\"id\\\":[ ]*\\\"[^\\\"]*\\\"' | cut -d'\\\"' -f4 2>/dev/null)"
 
 # Hook subcommands
 complete -c rewind -n "__fish_seen_subcommand_from hook" -a "install uninstall status"

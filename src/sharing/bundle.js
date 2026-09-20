@@ -76,7 +76,8 @@ export function sanitizeBundleIncident(record, rootDir = '') {
       stackFrames: (Array.isArray(record.diagnostic.stackFrames) ? record.diagnostic.stackFrames : []).map(f => ({
         ...f,
         file: f.file ? stripMachinePaths(f.file, rootDir) : null,
-        function: f.function ? redactSecrets(f.function) : null
+        function: f.function ? redactSecrets(f.function) : null,
+        raw: f.raw ? stripMachinePaths(redactSecrets(f.raw), rootDir) : null
       }))
     };
   }

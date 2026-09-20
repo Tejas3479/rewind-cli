@@ -26,7 +26,7 @@ export function observeSafeWorkspaceChanges(rootDir) {
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => line.slice(3).trim())
-      .filter(f => !f.startsWith('.env') && !f.endsWith('.key') && !f.endsWith('.pem') && !f.includes('id_rsa'));
+      .filter(f => !/(^|[/\\])\.env/i.test(f) && !f.endsWith('.key') && !f.endsWith('.pem') && !f.includes('id_rsa'));
 
     if (files.length > 0) {
       return {

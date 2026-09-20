@@ -145,7 +145,7 @@ export function applyEventToRecordMap(incidents, event) {
       const payload = event.payload || {};
       const currentAttempts = Array.isArray(existing.recoveryAttempts) ? [...existing.recoveryAttempts] : [];
       const targetAttemptId = payload.attemptId || (currentAttempts.length > 0 ? currentAttempts[currentAttempts.length - 1].id : 1);
-      const attemptIndex = currentAttempts.findIndex((a) => a.id === targetAttemptId);
+      const attemptIndex = currentAttempts.findIndex((a) => String(a.id) === String(targetAttemptId));
 
       if (attemptIndex !== -1) {
         const targetAttempt = { ...currentAttempts[attemptIndex] };
@@ -178,7 +178,7 @@ export function applyEventToRecordMap(incidents, event) {
       const payload = event.payload || {};
       const currentAttempts = Array.isArray(existing.recoveryAttempts) ? [...existing.recoveryAttempts] : [];
       const targetAttemptId = payload.attemptId || (currentAttempts.length > 0 ? currentAttempts[currentAttempts.length - 1].id : 1);
-      const attemptIndex = currentAttempts.findIndex(a => a.id === targetAttemptId);
+      const attemptIndex = currentAttempts.findIndex(a => String(a.id) === String(targetAttemptId));
 
       if (attemptIndex !== -1) {
         const targetAttempt = { ...currentAttempts[attemptIndex] };

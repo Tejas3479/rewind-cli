@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { readGitMetadata } from './git.js';
 import { captureSafeEnvironment } from './environment.js';
-import { sanitizeOutput } from './sanitizer.js';
+import { sanitizeOutput, sanitizeForDisplay } from './sanitizer.js';
 import { SpawnError } from './errors.js';
 import { parseDiagnostic } from './diagnostics/index.js';
 
@@ -323,8 +323,8 @@ export async function executeAndCapture(commandTokens, options = {}) {
       const stdoutRaw = Buffer.concat(stdoutChunks).toString('utf8');
       const stderrRaw = Buffer.concat(stderrChunks).toString('utf8');
 
-      const stdoutSanitized = sanitizeOutput(stdoutRaw);
-      const stderrSanitized = sanitizeOutput(stderrRaw);
+      const stdoutSanitized = sanitizeForDisplay(stdoutRaw);
+      const stderrSanitized = sanitizeForDisplay(stderrRaw);
 
       // Safe git and environment metadata
       const gitMetadata = readGitMetadata(cwd);

@@ -256,7 +256,7 @@ export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalL
     
     // Validate against SQLite Database
     const dbPath = path.join(ledgerDir, 'projection.db');
-    let db;
+    let db = null;
     let onDiskIds = new Set();
     
     if (fs.existsSync(dbPath)) {
@@ -301,6 +301,10 @@ export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalL
         }
       } catch (err) {
         recordError('PROJECTION_DRIFT', `Could not query SQLite projection database: ${err.message}`);
+      } finally {
+        if (db) {
+          try { db.close(); } catch {}
+        }
       }
     }
     

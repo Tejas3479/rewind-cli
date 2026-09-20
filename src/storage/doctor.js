@@ -190,7 +190,7 @@ export function performWriteProbe(tmpDir) {
  * @returns {{ isLocked: boolean, lockFile: string | null, details: string | null }}
  */
 export function checkActiveLock(ledgerDir) {
-  const lockPath = path.join(ledgerDir, 'lock');
+  const lockPath = path.join(ledgerDir, 'journal.lock');
   if (fs.existsSync(lockPath)) {
     try {
       const lockStat = fs.statSync(lockPath);
@@ -837,17 +837,24 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
       const projected = projectEventsToRecords(events);
       
       const dbPath = path.join(resolvedLedger, 'projection.db');
-      const db = new DatabaseSync(dbPath);
-      db.exec('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
-      db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
-      db.exec('BEGIN TRANSACTION');
-      const deleteAllStmt = db.prepare('DELETE FROM records');
-      deleteAllStmt.run();
-      const insertStmt = db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
-      for (const [id, record] of projected.entries()) {
-        insertStmt.run(id, JSON.stringify(record));
+      let db = null;
+      try {
+        db = new DatabaseSync(dbPath);
+        db.exec('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
+        db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
+        db.exec('BEGIN TRANSACTION');
+        const deleteAllStmt = db.prepare('DELETE FROM records');
+        deleteAllStmt.run();
+        const insertStmt = db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
+        for (const [id, record] of projected.entries()) {
+          insertStmt.run(id, JSON.stringify(record));
+        }
+        db.exec('COMMIT');
+      } finally {
+        if (db) {
+          try { db.close(); } catch {}
+        }
       }
-      db.exec('COMMIT');
 
       actionsTaken.push(`Reconstructed ${projected.size} derived incident projection(s) in SQLite database`);
     }
