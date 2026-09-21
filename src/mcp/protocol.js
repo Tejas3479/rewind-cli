@@ -1,12 +1,50 @@
 /**
+ * Standard JSON-RPC 2.0 error codes and MCP-specific error codes.
+ */
+export const ErrorCodes = {
+  PARSE_ERROR: -32700,
+  INVALID_REQUEST: -32600,
+  METHOD_NOT_FOUND: -32601,
+  INVALID_PARAMS: -32602,
+  INTERNAL_ERROR: -32603,
+  // MCP-specific protocol error codes (-32000 to -32099)
+  RESOURCE_NOT_FOUND: -32002
+};
+
+/**
+ * Custom error class representing a JSON-RPC 2.0 / MCP protocol error.
+ */
+export class McpError extends Error {
+  /**
+   * @param {number} code
+   * @param {string} message
+   * @param {object} [data]
+   */
+  constructor(code, message, data = undefined) {
+    super(message);
+    this.name = 'McpError';
+    this.code = code;
+    if (data !== undefined) {
+      this.data = data;
+    }
+  }
+}
+
+/**
  * Parses a JSON-RPC 2.0 message string.
  * @param {string} line - Raw JSON line
  * @returns {object} Parsed message with { jsonrpc, id, method, params }
  */
 export function parseMessage(line) {
-  const msg = JSON.parse(line);
-  if (msg.jsonrpc !== '2.0') {
-    throw new Error('Invalid JSON-RPC version');
+  let msg;
+  try {
+    msg = JSON.parse(line);
+  } catch {
+    throw new McpError(ErrorCodes.PARSE_ERROR, 'Parse error: invalid JSON');
+  }
+
+  if (typeof msg !== 'object' || msg === null || msg.jsonrpc !== '2.0') {
+    throw new McpError(ErrorCodes.INVALID_REQUEST, 'Invalid JSON-RPC version or malformed message');
   }
   return msg;
 }
@@ -33,7 +71,7 @@ export function createResponse(id, result) {
  * @param {object} [data]
  * @returns {string} JSON string
  */
-export function createErrorResponse(id, code, message, data) {
+export function createErrorResponse(id, code, message, data = undefined) {
   const error = { code, message };
   if (data !== undefined) {
     error.data = data;
@@ -44,12 +82,3 @@ export function createErrorResponse(id, code, message, data) {
     error
   });
 }
-
-// Standard JSON-RPC error codes
-export const ErrorCodes = {
-  PARSE_ERROR: -32700,
-  INVALID_REQUEST: -32600,
-  METHOD_NOT_FOUND: -32601,
-  INVALID_PARAMS: -32602,
-  INTERNAL_ERROR: -32603
-};

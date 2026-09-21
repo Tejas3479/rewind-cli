@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2026-09-21
 
 ### Added
+- **MCP Server Upgrade (A+ Specification Conformance)**:
+  - Expanded tool suite from 5 to 8 tools with `rewind_verify`, `rewind_doctor`, and `rewind_patterns`.
+  - Added 2026 Model Context Protocol Tool Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) across all tool definitions.
+  - Implemented MCP Resources with static endpoints (`rewind://incidents/latest`, `rewind://doctor/health`, `rewind://patterns`) and RFC 6570 URI templates (`rewind://incidents/{id}`, `rewind://incidents/{id}/evidence`).
+  - Implemented MCP Prompts (`triage-latest`, `verify-fix`, `explain-incident`) with Negative Memory injection to guide AI agents and prevent recurring fix loops.
+  - Added multi-version protocol negotiation (`2024-11-05`, `2025-03-26`, `2025-11-25`, `2026-07-28`).
+  - Strict JSON-RPC 2.0 notification compliance (notifications without `id` never produce response or error output).
 - **PowerShell Duration Tracking**: PowerShell prompt hook now computes command execution duration via `$lastHistory` and passes `--duration $durationMs`.
 - **Projection State Machine Invariants**: Deterministic journal projection now verifies legal state transitions (`assertValidIncidentTransition` & `assertValidAttemptTransition`) in `src/storage/projection.js`.
 - **CI Test & Build Verification**: Automated reproducible build verification and expanded syntax linting (`src`, `bin`, `scripts`, `test`) in GitHub Actions CI workflow.

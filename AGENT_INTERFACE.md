@@ -299,7 +299,16 @@ rewind verify 14
 
 ## 6. MCP Server Integration (Model Context Protocol)
 
-Rewind includes a built-in MCP server that exposes verified recovery knowledge to AI coding agents via JSON-RPC 2.0 over stdio.
+Rewind includes an enterprise-grade, zero-dependency Model Context Protocol (MCP) server that exposes verified recovery knowledge, automated verification loops, ledger integrity audits, and failure pattern intelligence to AI coding agents via JSON-RPC 2.0 over `stdio`.
+
+### Protocol Conformance & Capabilities
+
+- **Transport**: Standard I/O (`stdio`) using line-delimited JSON-RPC 2.0.
+- **Protocol Versions**: Dynamically negotiates `2024-11-05`, `2025-03-26`, `2025-11-25`, or `2026-07-28`.
+- **JSON-RPC 2.0 Conformance**: Strict notification handling (messages without an `id` receive no response or error output, preserving stdio stream integrity).
+- **Tool Safety Annotations**: Emits 2026 standard execution hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) for transparent client-side auto-approvals.
+- **Resources**: Direct URIs and RFC 6570 URI Templates for on-demand failure dumps and live health telemetry.
+- **Prompts**: Built-in interactive guidance with Negative Memory safeguards to prevent AI fix loops.
 
 ### Starting the MCP Server
 
@@ -307,22 +316,61 @@ Rewind includes a built-in MCP server that exposes verified recovery knowledge t
 rewind mcp
 ```
 
-This starts a long-running process that reads JSON-RPC messages from stdin and writes responses to stdout.
+Or via direct stdio pipe from any compliant host.
 
-### Available Tools
+---
 
-| Tool | Description | Required Parameters |
-|:---|:---|:---|
-| `rewind_context` | Get full agent context for an incident | `incidentId?` (defaults to "latest") |
-| `rewind_search` | Search historical failures by keyword | `query` (string), `limit?` |
-| `rewind_recover` | Record a recovery hypothesis | `incidentId`, `cause`, `change`, `verifyCmd?` |
-| `rewind_history` | List recent incidents | `limit?` |
-| `rewind_show` | Show detailed incident info | `incidentId` |
+### Available Tools (8 Tools)
 
-### Claude Code Configuration
+| Tool | Safety Annotations | Description | Required Parameters | Optional Parameters |
+|:---|:---|:---|:---|:---|
+| `rewind_context` | `readOnlyHint: true`, `idempotentHint: true` | Retrieves structured forensic context for an incident including git diffs, negative memory warnings, and active contradictions. | — | `incidentId` (default: `"latest"`) |
+| `rewind_search` | `readOnlyHint: true`, `idempotentHint: true` | Semantically searches past failures, verified fixes, and command histories with deduplicated ranking. | `query` (string) | `limit` (number, default: `5`) |
+| `rewind_history` | `readOnlyHint: true`, `idempotentHint: true` | Lists recent terminal failures and incident timelines. | — | `limit` (number, default: `10`) |
+| `rewind_show` | `readOnlyHint: true`, `idempotentHint: true` | Inspects full details of an incident (captured stdout/stderr, environment fingerprints, diagnostics). | `incidentId` (string) | — |
+| `rewind_doctor` | `readOnlyHint: true`, `idempotentHint: true` | Runs a 15-check cryptographic and operational audit of the Rewind ledger, projections, and journal health. | — | — |
+| `rewind_patterns` | `readOnlyHint: true`, `idempotentHint: true` | Returns empirical failure clusters, flakiness diagnostics, and recurring regression trends. | — | — |
+| `rewind_recover` | `readOnlyHint: false`, `destructiveHint: false` | Records an agent's root-cause hypothesis and proposed change into the append-only ledger (`SUSPECTED`). | `incidentId` (string), `cause` (string), `change` (string) | `verifyCmd` (string) |
+| `rewind_verify` | `readOnlyHint: false`, `destructiveHint: false` | Executes the stored verification command, captures output, and autonomously seals the incident state to `FIXED`/`VERIFIED` or `FAILED`. | `incidentId` (string) | — |
 
-Add to your `claude_desktop_config.json` or project's MCP settings:
+---
 
+### MCP Resources
+
+Rewind exposes read-only resource URIs allowing agents to inspect ledger states and incident logs without executing tool queries:
+
+#### Static Resources (`resources/list`)
+
+- `rewind://incidents/latest`: Snapshot of the most recent failure in the active workspace (`application/json`).
+- `rewind://doctor/health`: Cryptographic integrity report and ledger operational health (`application/json`).
+- `rewind://patterns`: Recurrent failure patterns and test flakiness analysis (`application/json`).
+- Dynamic recent incidents: Direct endpoints for recent failures (e.g. `rewind://incidents/inc_abc123`).
+
+#### Resource Templates (`resources/templates/list`)
+
+- `rewind://incidents/{id}`: RFC 6570 template for detailed incident metadata and diagnostic stack traces (`application/json`).
+- `rewind://incidents/{id}/evidence`: RFC 6570 template for raw captured terminal output and stderr text (`text/plain`).
+
+---
+
+### MCP Prompts (`prompts/list` & `prompts/get`)
+
+Rewind ships with production prompt templates that guide LLM agents through structured troubleshooting and prevent repeated mistakes:
+
+1. **`triage-latest`**:
+   - Injects the latest terminal failure, parsed stack traces, and **Negative Memory alerts** (disproved causes from prior failed remediation attempts).
+   - Instructs the agent to formulate a new, non-repeating hypothesis.
+2. **`verify-fix`**:
+   - Guides the agent through validating code modifications using the stored verification command (`rewind_verify`), completing the Trust Loop.
+3. **`explain-incident`**:
+   - Takes `incidentId` and asks the model to produce a root-cause explanation suitable for human teammates or pull request summaries.
+
+---
+
+### Client Configurations
+
+#### Claude Desktop & Claude Code
+Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
@@ -334,10 +382,8 @@ Add to your `claude_desktop_config.json` or project's MCP settings:
 }
 ```
 
-### Cursor MCP Settings
-
-Add to your Cursor MCP configuration:
-
+#### Cursor MCP Settings
+Add to Cursor Settings > Features > MCP:
 ```json
 {
   "mcpServers": {
@@ -350,10 +396,8 @@ Add to your Cursor MCP configuration:
 }
 ```
 
-### VS Code + Continue
-
-Add to your `.continue/config.json`:
-
+#### VS Code + Continue
+Add to `.continue/config.json`:
 ```json
 {
   "experimental": {
@@ -370,11 +414,21 @@ Add to your `.continue/config.json`:
 }
 ```
 
-### Generic MCP Client
+#### Windsurf / Cascade
+Add to `~/.codeium/windsurf/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "rewind": {
+      "command": "rewind",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
-Any MCP-compliant client can connect via stdio:
-
+#### Generic MCP Client
 ```bash
-# The server expects newline-delimited JSON-RPC 2.0 messages on stdin
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test"}}}' | rewind mcp
+# Handshake with stdio line-delimited JSON-RPC 2.0:
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{},"clientInfo":{"name":"custom-agent"}}}' | rewind mcp
 ```

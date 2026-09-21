@@ -12,9 +12,9 @@ Every compilation of Rewind's source tree into a standalone distribution artifac
 ```text
 ================================================================================
 ARTIFACT:             dist/rewind.js
-PASS #1 SHA-256:      b5a73af6231ef7631cae2abeffd98bf4043a1fc21d5241c7d677642bede1de26
-PASS #2 SHA-256:      b5a73af6231ef7631cae2abeffd98bf4043a1fc21d5241c7d677642bede1de26
-FILE SIZE:            495,238 bytes
+PASS #1 SHA-256:      4e3dc10461fbdc721a16baf5175ef7d97f77a129212b0375db87d86338cee32f
+PASS #2 SHA-256:      4e3dc10461fbdc721a16baf5175ef7d97f77a129212b0375db87d86338cee32f
+FILE SIZE:            516,954 bytes
 DETERMINISTIC MATCH:  TRUE (100% Bitwise Parity)
 ================================================================================
 ```
