@@ -80,7 +80,9 @@ export async function showCommand({ context }) {
 
   // Section 2: Failure Signature & Fingerprint
   stdout.write(`${s.bold('FAILURE SIGNATURE:')}\n`);
-  stdout.write(`  ${s.dim('Fingerprint:'.padEnd(14))} ${s.cyan(record.fingerprint || 'none')}\n`);
+  const fpVersion = record.fingerprintVersion || (record.fingerprint?.length === 64 ? 2 : 1);
+  const fpVersionSuffix = record.fingerprint ? s.dim(` (v${fpVersion})`) : '';
+  stdout.write(`  ${s.dim('Fingerprint:'.padEnd(14))} ${s.cyan(record.fingerprint || 'none')}${fpVersionSuffix}\n`);
   if (record.normalizedError) {
     stdout.write(`  ${s.dim('Normalized Signature:')}\n`);
     const cleanNorm = sanitizeForDisplay(record.normalizedError);

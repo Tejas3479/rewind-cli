@@ -72,7 +72,8 @@ export function boundOutput(text) {
 /**
  * @typedef {object} IncidentRecord
  * @property {string} id - Monotonically increasing unique record ID (e.g. "1")
- * @property {string} fingerprint - Deterministic failure hash (16 hex chars)
+ * @property {string} fingerprint - Deterministic failure hash (64 hex chars for v2, 16 hex chars for legacy v1)
+ * @property {number} [fingerprintVersion=1] - Fingerprint schema version (1 = legacy 16-hex, 2 = full 64-hex SHA-256)
  * @property {string} status - OBSERVED | OPEN | RECOVERED | REGRESSED | RESOLVED | success
  * @property {string} command - Target command executable
  * @property {string[]} args - Target command arguments
@@ -106,7 +107,7 @@ export function boundOutput(text) {
  * @returns {IncidentRecord}
  */
 export function createRecord(id, captureResult, options = {}) {
-  const { fingerprint, normalizedError } = computeFingerprint({
+  const { fingerprint, fingerprintVersion, normalizedError } = computeFingerprint({
     command: captureResult.command,
     args: captureResult.args,
     exitCode: captureResult.exitCode,
@@ -127,6 +128,7 @@ export function createRecord(id, captureResult, options = {}) {
   const baseRecord = {
     id: String(id),
     fingerprint,
+    fingerprintVersion: captureResult.fingerprintVersion || fingerprintVersion || 2,
     status,
     command: captureResult.command,
     args: [...(captureResult.args || [])],
@@ -254,6 +256,11 @@ export function normalizeRecordToCurrentSchema(record) {
       verificationRuns: runs
     };
   });
+
+  // Normalize fingerprint version: 2 if 64 hex chars, otherwise legacy 1
+  if (!copy.fingerprintVersion) {
+    copy.fingerprintVersion = (copy.fingerprint && copy.fingerprint.length === 64) ? 2 : 1;
+  }
 
   // Normalize legacy status string
   if (copy.status === 'FIXED' || copy.status === 'SUSPECTED') {

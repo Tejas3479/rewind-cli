@@ -660,16 +660,54 @@ export class StorageEngine {
   }
 
   /**
-   * Finds all records with an exact matching fingerprint.
+   * Finds all records with an exact matching fingerprint, supporting cross-version matching
+   * between modern v2 (64 hex) and legacy v1 (16 hex) fingerprints.
    *
    * @param {string} fingerprint
    * @returns {Array<import('./record.js').IncidentRecord>}
    */
   findByFingerprint(fingerprint) {
     if (!fingerprint) return [];
-    const list = this.fingerprintIndex.get(fingerprint);
+    let list = this.fingerprintIndex.get(fingerprint);
+    if (!list || list.length === 0) {
+      // Cross-version fallback
+      if (fingerprint.length === 64) {
+        list = this.fingerprintIndex.get(fingerprint.slice(0, 16));
+      } else if (fingerprint.length === 16) {
+        for (const [key, records] of this.fingerprintIndex.entries()) {
+          if (key.length === 64 && key.startsWith(fingerprint)) {
+            list = records;
+            break;
+          }
+        }
+      }
+    }
     if (!list) return [];
     return [...list].sort((a, b) => Number(b.id) - Number(a.id));
+  }
+
+  /**
+   * Finds observations matching a fingerprint with cross-version fallback.
+   *
+   * @param {string} fingerprint
+   * @returns {Array<object>}
+   */
+  findObservationsByFingerprint(fingerprint) {
+    if (!fingerprint || !this.obsFingerprintIndex) return [];
+    let list = this.obsFingerprintIndex.get(fingerprint);
+    if (!list || list.length === 0) {
+      if (fingerprint.length === 64) {
+        list = this.obsFingerprintIndex.get(fingerprint.slice(0, 16));
+      } else if (fingerprint.length === 16) {
+        for (const [key, records] of this.obsFingerprintIndex.entries()) {
+          if (key.length === 64 && key.startsWith(fingerprint)) {
+            list = records;
+            break;
+          }
+        }
+      }
+    }
+    return list || [];
   }
 
   /**
@@ -680,8 +718,8 @@ export class StorageEngine {
    */
   findVerifiedByFingerprint(fingerprint) {
     if (!fingerprint) return null;
-    const list = this.fingerprintIndex.get(fingerprint);
-    if (!list) return null;
+    const list = this.findByFingerprint(fingerprint);
+    if (!list || list.length === 0) return null;
     let latestVerified = null;
 
     for (const record of list) {
@@ -764,6 +802,7 @@ export class StorageEngine {
         exitCode: typeof captureResult.exitCode === 'number' ? captureResult.exitCode : 1,
         signal: captureResult.signal || null,
         fingerprint: fingerprint || '',
+        fingerprintVersion: captureResult.fingerprintVersion || computed.fingerprintVersion || 2,
         normalizedError: normalizedError || '',
         evidenceHash: evidenceHash || '',
         evidenceRef: evidenceRef || '',
@@ -782,7 +821,7 @@ export class StorageEngine {
 
     // Link any existing unpromoted observations with this fingerprint
     if (fingerprint && this.obsFingerprintIndex) {
-      const matchingObs = this.obsFingerprintIndex.get(fingerprint);
+      const matchingObs = this.findObservationsByFingerprint(fingerprint);
       if (matchingObs) {
         for (const obs of matchingObs) {
           if (!obs.promotedToIncident) {
@@ -836,6 +875,7 @@ export class StorageEngine {
     const payload = {
       id: obsId,
       fingerprint,
+      fingerprintVersion: captureResult.fingerprintVersion || computed.fingerprintVersion || 2,
       normalizedError: normalizedError || '',
       command: captureResult.command || '',
       args: Array.isArray(captureResult.args) ? captureResult.args : [],
@@ -947,7 +987,7 @@ export class StorageEngine {
     const windowMs = typeof options.windowMs === 'number' ? options.windowMs : 30 * 60 * 1000;
     const cutoff = Date.now() - windowMs;
 
-    const obsList = this.obsFingerprintIndex.get(fingerprint) || [];
+    const obsList = this.findObservationsByFingerprint(fingerprint);
     const recentUnpromoted = obsList.filter(obs => {
       if (obs.promotedToIncident) return false;
       const createdTime = new Date(obs.createdAt).getTime();

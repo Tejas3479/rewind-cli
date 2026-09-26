@@ -75,8 +75,24 @@ export function normalizeRecoveryHypothesis(text = '') {
 function groupEventsByFingerprint(events, projectedRecords) {
   const families = new Map();
 
+  function resolveFamilyKey(fp) {
+    if (families.has(fp)) return fp;
+    if (fp.length === 64) {
+      const v1Key = fp.slice(0, 16);
+      if (families.has(v1Key)) return v1Key;
+    } else if (fp.length === 16) {
+      for (const existingKey of families.keys()) {
+        if (existingKey.length === 64 && existingKey.startsWith(fp)) {
+          return existingKey;
+        }
+      }
+    }
+    return fp;
+  }
+
   for (const record of projectedRecords.values()) {
-    const fp = record.fingerprint || 'unknown';
+    const rawFp = record.fingerprint || 'unknown';
+    const fp = resolveFamilyKey(rawFp);
     if (!families.has(fp)) {
       families.set(fp, { records: [], events: [] });
     }
@@ -85,9 +101,12 @@ function groupEventsByFingerprint(events, projectedRecords) {
 
   for (const event of events) {
     const rec = projectedRecords.get(String(event.incidentId));
-    const fp = rec?.fingerprint || event.payload?.fingerprint;
-    if (fp && families.has(fp)) {
-      families.get(fp).events.push(event);
+    const rawFp = rec?.fingerprint || event.payload?.fingerprint;
+    if (rawFp) {
+      const fp = resolveFamilyKey(rawFp);
+      if (families.has(fp)) {
+        families.get(fp).events.push(event);
+      }
     }
   }
 

@@ -105,8 +105,15 @@ export function scoreRecord(query, record, context = {}) {
   const fp = (record.fingerprint || '').toLowerCase();
   const isRecovered = record.status === IncidentStatus.RECOVERED || record.status === 'VERIFIED';
 
-  // 1. Tier 1: Exact Fingerprint Match
-  if (fp && (cleanQuery === fp || fp.startsWith(cleanQuery) || cleanQuery.includes(fp))) {
+  // 1. Tier 1: Exact Fingerprint Match (supports modern 64-hex, legacy 16-hex, and prefixes)
+  const isExactFp = Boolean(fp && (
+    cleanQuery === fp ||
+    fp.startsWith(cleanQuery) ||
+    cleanQuery.includes(fp) ||
+    (cleanQuery.length === 64 && fp.length === 16 && cleanQuery.startsWith(fp))
+  ));
+
+  if (isExactFp) {
     const failedAttempts = extractNegativeMemory([record]);
     return {
       id: record.id,
