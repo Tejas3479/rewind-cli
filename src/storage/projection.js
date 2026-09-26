@@ -260,6 +260,44 @@ export function applyEventToRecordMap(incidents, event) {
       incidents.set(id, normalizeRecordToCurrentSchema(updated));
       break;
     }
+
+    case 'observation.promoted': {
+      const payload = event.payload || {};
+      const newRecord = {
+        id,
+        fingerprint: payload.fingerprint || '',
+        command: payload.command || '',
+        args: Array.isArray(payload.args) ? payload.args : [],
+        fullCommand: payload.fullCommand || `${payload.command || ''} ${(payload.args || []).join(' ')}`.trim(),
+        cwd: payload.cwd || '',
+        startTime: payload.startTime || event.timestamp,
+        endTime: payload.endTime || event.timestamp,
+        durationMs: payload.durationMs || 0,
+        exitCode: payload.exitCode ?? 1,
+        signal: payload.signal || null,
+        status: IncidentStatus.OBSERVED,
+        stdout: payload.stdoutSnippet || payload.stdout || '',
+        stderr: payload.stderrSnippet || payload.stderr || '',
+        normalizedError: payload.normalizedError || '',
+        evidenceHash: payload.evidenceHash || '',
+        evidenceRef: payload.evidenceRef || '',
+        diagnostic: payload.diagnostic || null,
+        isTruncated: Boolean(payload.isTruncated),
+        git: payload.git || { isGit: false },
+        environment: payload.environment || {},
+        regressionOf: payload.regressionOf || null,
+        recoveryAttempts: [],
+        promotedFromObservation: payload.observationId || null,
+        _projection: {
+          notice: 'DERIVED AND REBUILDABLE. Authoritative source of truth is .rewind/journal.jsonl',
+          projectionSchemaVersion: PROJECTION_SCHEMA_VERSION,
+          derivedFromSequence: event.sequence,
+          projectedAt: event.timestamp
+        }
+      };
+      incidents.set(id, normalizeRecordToCurrentSchema(newRecord));
+      break;
+    }
   }
 
   return incidents.get(id) || null;
@@ -280,6 +318,56 @@ export function projectEventsToRecords(events = []) {
   }
 
   return incidents;
+}
+
+/**
+ * Pure deterministic reducer that replays journal events to derive
+ * the complete set of Observation views.
+ *
+ * @param {Array<object>} events - Ordered journal events
+ * @returns {Map<string, object>}
+ */
+export function projectEventsToObservations(events = []) {
+  const observations = new Map();
+
+  for (const event of events) {
+    if (!event || !event.type) continue;
+
+    if (event.type === 'observation.recorded') {
+      const payload = event.payload || {};
+      const obsId = String(payload.id || event.incidentId);
+      observations.set(obsId, {
+        id: obsId,
+        fingerprint: payload.fingerprint || '',
+        command: payload.command || '',
+        args: Array.isArray(payload.args) ? payload.args : [],
+        fullCommand: payload.fullCommand || '',
+        cwd: payload.cwd || '',
+        durationMs: payload.durationMs || 0,
+        exitCode: payload.exitCode ?? 1,
+        signal: payload.signal || null,
+        stderr: payload.stderr || '',
+        stdout: payload.stdout || '',
+        diagnostic: payload.diagnostic || null,
+        diagnosticType: payload.diagnosticType || payload.diagnostic?.errorType || null,
+        createdAt: payload.createdAt || event.timestamp,
+        ttlExpiry: payload.ttlExpiry || null,
+        promotedToIncident: payload.promotedToIncident || null,
+        environment: payload.environment || {},
+        git: payload.git || { isGit: false },
+        _sequence: event.sequence
+      });
+    } else if (event.type === 'observation.promoted') {
+      const payload = event.payload || {};
+      const obsId = String(payload.observationId || '');
+      if (obsId && observations.has(obsId)) {
+        const obs = observations.get(obsId);
+        obs.promotedToIncident = String(event.incidentId || payload.promotedToIncident);
+      }
+    }
+  }
+
+  return observations;
 }
 
 /**

@@ -8,6 +8,7 @@ import { computeFingerprint } from './fingerprint.js';
 import { evaluateStaleness } from './staleness.js';
 import { extractNegativeMemory } from './negative_memory.js';
 import { analyzeEvidenceConflicts } from './contradiction.js';
+import { evaluateSurfacing } from './surfacing.js';
 import {
   appendJournalEvent,
   readJournalEvents,
@@ -16,7 +17,7 @@ import {
   writeCheckpoint,
   saveEvidenceArtifact
 } from './journal.js';
-import { projectEventsToRecords, applyEventToRecordMap } from './projection.js';
+import { projectEventsToRecords, projectEventsToObservations, applyEventToRecordMap } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { analyzePatternsFromJournal } from './patterns.js';
 import { buildAgentContext } from './context.js';
@@ -51,6 +52,10 @@ export class StorageEngine {
     this.index = new Map();
     /** @type {Map<string, Array<import('./record.js').IncidentRecord>>} */
     this.fingerprintIndex = new Map();
+    /** @type {Map<string, object>} */
+    this.observations = new Map();
+    /** @type {Map<string, Array<object>>} */
+    this.obsFingerprintIndex = new Map();
     this.highestId = 0;
     /** @type {Array<{ file: string, reason: string, quarantinedAt: string }>} */
     this.quarantined = [];
@@ -74,7 +79,10 @@ export class StorageEngine {
     // 3. Initialize SQLite Projection DB
     this.initDatabase();
 
-    // 4. Fast-path initialization: check if checkpoint matches journal tail and records are valid
+    // 4. Clean expired observations
+    this.cleanupExpiredObservations();
+
+    // 5. Fast-path initialization: check if checkpoint matches journal tail and records are valid
     const checkpoint = readCheckpoint(this.ledgerDir);
     const lastEvent = readLastJournalEvent(this.journalPath);
 
@@ -140,6 +148,21 @@ export class StorageEngine {
         id TEXT PRIMARY KEY,
         data TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS observations (
+        id TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        command TEXT,
+        exitCode INTEGER,
+        stderr TEXT,
+        diagnosticType TEXT,
+        createdAt TEXT NOT NULL,
+        promotedToIncident TEXT,
+        ttlExpiry TEXT,
+        data TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_fingerprint ON observations(fingerprint);
+      CREATE INDEX IF NOT EXISTS idx_obs_ttl ON observations(ttlExpiry);
+      CREATE INDEX IF NOT EXISTS idx_obs_created ON observations(createdAt);
     `);
     
     // Optimize SQLite for single-node local performance
@@ -152,6 +175,12 @@ export class StorageEngine {
     this.insertStmt = this.db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
     this.selectAllStmt = this.db.prepare('SELECT id, data FROM records');
     this.deleteAllStmt = this.db.prepare('DELETE FROM records');
+
+    this.insertObsStmt = this.db.prepare('INSERT OR REPLACE INTO observations (id, fingerprint, command, exitCode, stderr, diagnosticType, createdAt, promotedToIncident, ttlExpiry, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    this.selectAllObsStmt = this.db.prepare('SELECT id, data FROM observations');
+    this.deleteExpiredObsStmt = this.db.prepare("DELETE FROM observations WHERE ttlExpiry IS NOT NULL AND ttlExpiry <= ? AND (promotedToIncident IS NULL OR promotedToIncident = '')");
+    this.updateObsPromotedStmt = this.db.prepare('UPDATE observations SET promotedToIncident = ?, data = ? WHERE id = ?');
+    this.deleteAllObsStmt = this.db.prepare('DELETE FROM observations');
   }
 
   /**
@@ -162,6 +191,8 @@ export class StorageEngine {
   loadFromDatabase() {
     this.index.clear();
     this.fingerprintIndex.clear();
+    this.observations.clear();
+    this.obsFingerprintIndex.clear();
     this.highestId = 0;
     this.quarantined = [];
 
@@ -196,6 +227,25 @@ export class StorageEngine {
           // Skip corrupt rows
         }
       }
+
+      if (this.selectAllObsStmt) {
+        const obsRows = this.selectAllObsStmt.all();
+        for (const row of obsRows) {
+          try {
+            const parsed = JSON.parse(row.data);
+            this.observations.set(row.id, parsed);
+            if (parsed.fingerprint) {
+              let oList = this.obsFingerprintIndex.get(parsed.fingerprint);
+              if (!oList) {
+                oList = [];
+                this.obsFingerprintIndex.set(parsed.fingerprint, oList);
+              }
+              oList.push(parsed);
+            }
+          } catch (err) {}
+        }
+      }
+
       return true;
     } catch (err) {
       return false;
@@ -211,6 +261,23 @@ export class StorageEngine {
       this.deleteAllStmt.run();
       for (const [id, record] of this.index.entries()) {
         this.insertStmt.run(id, JSON.stringify(record));
+      }
+      if (this.deleteAllObsStmt) {
+        this.deleteAllObsStmt.run();
+        for (const [id, obs] of this.observations.entries()) {
+          this.insertObsStmt.run(
+            id,
+            obs.fingerprint || '',
+            obs.command || '',
+            typeof obs.exitCode === 'number' ? obs.exitCode : null,
+            obs.stderr || '',
+            obs.diagnosticType || null,
+            obs.createdAt || '',
+            obs.promotedToIncident || null,
+            obs.ttlExpiry || null,
+            JSON.stringify(obs)
+          );
+        }
       }
       this.db.exec('COMMIT');
     } catch (err) {
@@ -297,9 +364,14 @@ export class StorageEngine {
   }
 
   rebuildIndex(options = {}) {
+    if (!this.db) {
+      this.initDatabase();
+    }
     const forceSyncDisk = Boolean(options.syncDisk);
     this.index.clear();
     this.fingerprintIndex.clear();
+    this.observations.clear();
+    this.obsFingerprintIndex.clear();
     this.highestId = 0;
     this.quarantined = [];
 
@@ -370,6 +442,19 @@ export class StorageEngine {
         const numId = Number.parseInt(id, 10);
         if (!Number.isNaN(numId) && numId > this.highestId) {
           this.highestId = numId;
+        }
+      }
+
+      const projectedObservations = projectEventsToObservations(events);
+      for (const [id, obs] of projectedObservations.entries()) {
+        this.observations.set(id, obs);
+        if (obs.fingerprint) {
+          let list = this.obsFingerprintIndex.get(obs.fingerprint);
+          if (!list) {
+            list = [];
+            this.obsFingerprintIndex.set(obs.fingerprint, list);
+          }
+          list.push(obs);
         }
       }
 
@@ -694,7 +779,279 @@ export class StorageEngine {
 
     // Incrementally apply the event in O(1) and write single projected record
     const record = this.applyJournalEvent(event, { syncDisk: true });
+
+    // Link any existing unpromoted observations with this fingerprint
+    if (fingerprint && this.obsFingerprintIndex) {
+      const matchingObs = this.obsFingerprintIndex.get(fingerprint);
+      if (matchingObs) {
+        for (const obs of matchingObs) {
+          if (!obs.promotedToIncident) {
+            obs.promotedToIncident = id;
+            if (this.updateObsPromotedStmt) {
+              this.updateObsPromotedStmt.run(id, JSON.stringify(obs), obs.id);
+            }
+          }
+        }
+      }
+    }
+
     return record || this.index.get(id);
+  }
+
+  /**
+   * Saves a lightweight failure observation (tier: OBSERVE) into the journal
+   * and SQLite projection, with automatic TTL expiry.
+   *
+   * @param {import('../capture.js').CaptureRecord} captureResult
+   * @param {object} [options]
+   * @param {number} [options.ttlMs] TTL in milliseconds (default: 7 days)
+   * @returns {object} The created observation record
+   */
+  saveObservation(captureResult, options = {}) {
+    if (!this.initialized) {
+      this.init();
+    }
+
+    const computed = computeFingerprint({
+      command: captureResult.command || '',
+      args: captureResult.args || [],
+      exitCode: captureResult.exitCode,
+      signal: captureResult.signal,
+      stderr: captureResult.stderr || '',
+      stdout: captureResult.stdout || ''
+    });
+    const fingerprint = captureResult.fingerprint || computed.fingerprint;
+    const normalizedError = captureResult.normalizedError || computed.normalizedError;
+
+    const obsId = `obs_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const createdAt = new Date().toISOString();
+    const ttlMs = options.ttlMs || (7 * 24 * 60 * 60 * 1000); // 7 days default
+    const ttlExpiry = new Date(Date.now() + ttlMs).toISOString();
+
+    const rawStderr = captureResult.stderr || '';
+    const rawStdout = captureResult.stdout || '';
+    const boundStderr = boundOutput(rawStderr);
+    const boundStdout = boundOutput(rawStdout);
+
+    const payload = {
+      id: obsId,
+      fingerprint,
+      normalizedError: normalizedError || '',
+      command: captureResult.command || '',
+      args: Array.isArray(captureResult.args) ? captureResult.args : [],
+      fullCommand: captureResult.fullCommand || `${captureResult.command || ''} ${(captureResult.args || []).join(' ')}`.trim(),
+      cwd: captureResult.cwd || '',
+      durationMs: typeof captureResult.durationMs === 'number' ? captureResult.durationMs : 0,
+      exitCode: typeof captureResult.exitCode === 'number' ? captureResult.exitCode : 1,
+      signal: captureResult.signal || null,
+      stderr: boundStderr.bounded || '',
+      stdout: boundStdout.bounded || '',
+      diagnostic: captureResult.diagnostic || null,
+      diagnosticType: captureResult.diagnostic?.errorType || null,
+      createdAt,
+      ttlExpiry,
+      promotedToIncident: null,
+      environment: captureResult.environment || {},
+      git: captureResult.git || { isGit: false }
+    };
+
+    const event = appendJournalEvent(this.ledgerDir, {
+      type: 'observation.recorded',
+      incidentId: obsId,
+      payload
+    });
+
+    const obs = { ...payload, _sequence: event.sequence };
+    this.observations.set(obsId, obs);
+
+    let list = this.obsFingerprintIndex.get(fingerprint);
+    if (!list) {
+      list = [];
+      this.obsFingerprintIndex.set(fingerprint, list);
+    }
+    list.push(obs);
+
+    if (this.insertObsStmt) {
+      this.insertObsStmt.run(
+        obsId,
+        fingerprint,
+        obs.command,
+        obs.exitCode,
+        obs.stderr,
+        obs.diagnosticType,
+        createdAt,
+        null,
+        ttlExpiry,
+        JSON.stringify(obs)
+      );
+    }
+
+    return obs;
+  }
+
+  /**
+   * Retrieves an observation record by ID.
+   *
+   * @param {string} id
+   * @returns {object|null}
+   */
+  getObservation(id) {
+    if (!id) return null;
+    return this.observations.get(String(id)) || null;
+  }
+
+  /**
+   * Lists observations, optionally filtered by fingerprint or promotion status.
+   *
+   * @param {object} [options]
+   * @param {string} [options.fingerprint]
+   * @param {boolean} [options.unpromotedOnly]
+   * @param {number} [options.limit]
+   * @returns {Array<object>}
+   */
+  listObservations(options = {}) {
+    let results = Array.from(this.observations.values());
+    if (options.fingerprint) {
+      results = results.filter(o => o.fingerprint === options.fingerprint);
+    }
+    if (options.unpromotedOnly) {
+      results = results.filter(o => !o.promotedToIncident);
+    }
+    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (typeof options.limit === 'number' && options.limit > 0) {
+      results = results.slice(0, options.limit);
+    }
+    return results;
+  }
+
+  /**
+   * Evaluates whether an incoming failure with this fingerprint should be promoted.
+   * Promotes if:
+   * 1. Matches an existing incident in the ledger (known failure recurring).
+   * 2. Has prior unpromoted observation within window (default: 30 minutes).
+   *
+   * @param {string} fingerprint
+   * @param {object} [options]
+   * @param {number} [options.windowMs=1800000]
+   * @returns {boolean}
+   */
+  shouldPromoteObservation(fingerprint, options = {}) {
+    if (!fingerprint) return false;
+
+    // 1. Matches existing incident in the ledger
+    if (this.findByFingerprint(fingerprint).length > 0) {
+      return true;
+    }
+
+    // 2. Has prior unpromoted observation within window
+    const windowMs = typeof options.windowMs === 'number' ? options.windowMs : 30 * 60 * 1000;
+    const cutoff = Date.now() - windowMs;
+
+    const obsList = this.obsFingerprintIndex.get(fingerprint) || [];
+    const recentUnpromoted = obsList.filter(obs => {
+      if (obs.promotedToIncident) return false;
+      const createdTime = new Date(obs.createdAt).getTime();
+      return createdTime >= cutoff;
+    });
+
+    return recentUnpromoted.length >= 1;
+  }
+
+  /**
+   * Promotes an observation to a full durable incident record.
+   *
+   * @param {string} observationId
+   * @param {object} [options]
+   * @returns {import('./record.js').IncidentRecord|null}
+   */
+  promoteObservation(observationId, options = {}) {
+    if (!this.initialized) {
+      this.init();
+    }
+
+    const obs = this.getObservation(observationId);
+    if (!obs) return null;
+
+    if (obs.promotedToIncident) {
+      return this.getRecord(obs.promotedToIncident);
+    }
+
+    const id = this.getNextId();
+
+    const rawStderr = obs.stderr || '';
+    const rawStdout = obs.stdout || '';
+    const fullOutput = rawStdout + (rawStdout && rawStderr ? '\n' : '') + rawStderr;
+    const { evidenceHash, evidenceRef } = saveEvidenceArtifact(this.ledgerDir, fullOutput);
+
+    const payload = {
+      observationId: obs.id,
+      command: obs.command,
+      args: obs.args || [],
+      fullCommand: obs.fullCommand,
+      cwd: obs.cwd,
+      durationMs: obs.durationMs,
+      exitCode: obs.exitCode,
+      signal: obs.signal,
+      fingerprint: obs.fingerprint,
+      normalizedError: obs.normalizedError,
+      evidenceHash,
+      evidenceRef,
+      stderrSnippet: obs.stderr,
+      stdoutSnippet: obs.stdout,
+      diagnostic: obs.diagnostic,
+      environment: obs.environment,
+      git: obs.git
+    };
+
+    const event = appendJournalEvent(this.ledgerDir, {
+      type: 'observation.promoted',
+      incidentId: id,
+      payload
+    });
+
+    const incident = this.applyJournalEvent(event, { syncDisk: true });
+
+    // Mark observation as promoted
+    obs.promotedToIncident = id;
+    if (this.updateObsPromotedStmt) {
+      this.updateObsPromotedStmt.run(id, JSON.stringify(obs), obs.id);
+    }
+
+    return incident || this.index.get(id);
+  }
+
+  /**
+   * Cleans up expired observations based on ttlExpiry.
+   *
+   * @param {string} [nowIso]
+   * @returns {number} Count of deleted observations
+   */
+  cleanupExpiredObservations(nowIso = new Date().toISOString()) {
+    let deletedCount = 0;
+
+    if (this.deleteExpiredObsStmt) {
+      try {
+        const info = this.deleteExpiredObsStmt.run(nowIso);
+        deletedCount = info.changes || 0;
+      } catch {}
+    }
+
+    // Clean in-memory
+    const nowTime = new Date(nowIso).getTime();
+    for (const [id, obs] of this.observations.entries()) {
+      if (!obs.promotedToIncident && obs.ttlExpiry) {
+        if (new Date(obs.ttlExpiry).getTime() <= nowTime) {
+          this.observations.delete(id);
+          const list = this.obsFingerprintIndex.get(obs.fingerprint);
+          if (list) {
+            const idx = list.findIndex(o => o.id === id);
+            if (idx !== -1) list.splice(idx, 1);
+          }
+        }
+      }
+    }
+
+    return deletedCount;
   }
 
   /**
@@ -853,6 +1210,20 @@ export class StorageEngine {
   getContradictionReport(fingerprint) {
     const familyRecords = this.findByFingerprint(fingerprint);
     return analyzeEvidenceConflicts(fingerprint, familyRecords);
+  }
+
+  /**
+   * Evaluates historical recovery candidates and returns an actionable surfacing decision
+   * (SURFACE, CAUTION, or SILENCE) applying strict abstention on stale/contradicted fixes.
+   *
+   * @param {import('./record.js').IncidentRecord|object} currentRecord
+   * @returns {import('./surfacing.js').SurfacingDecision}
+   */
+  getSurfacingDecision(currentRecord) {
+    if (!this.initialized) {
+      this.init();
+    }
+    return evaluateSurfacing(currentRecord, this);
   }
 
   /**

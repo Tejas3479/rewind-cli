@@ -309,7 +309,7 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
       });
 
       storage.rebuildIndex();
-      const record = storage.getRecord('1');
+      const record = storage.getRecord('1') || storage.listObservations()[0];
       assert.ok(record);
       assert.doesNotMatch(record.fullCommand, /sk-abcdef/);
       assert.match(record.fullCommand, /\[REDACTED_API_KEY\]/);
@@ -424,6 +424,8 @@ describe('Optional REWIND Shell-Hook Integrations (test/hook.test.js)', () => {
         '1',
         '--cmd',
         'pytest test_auth.py',
+        '--stderr',
+        'FAILED test_auth.py::test_login - AssertionError',
         '--root',
         tempDir
       ], {

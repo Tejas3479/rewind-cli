@@ -14,6 +14,7 @@ import { captureSafeEnvironment } from '../environment.js';
 import { readGitMetadata } from '../git.js';
 import { parseDiagnostic } from '../diagnostics/index.js';
 import { IncidentStatus } from '../storage/state.js';
+import { classifyCapture, CaptureClassification } from '../storage/capture_policy.js';
 
 /**
  * Handler for `rewind hook [shell|record] [options]`.
@@ -91,6 +92,16 @@ export async function hookCommand({ context }) {
       };
 
       if (storage) {
+        const classification = classifyCapture(record, storage, 'shell_hook');
+        if (classification === CaptureClassification.DISCARD) {
+          return 0;
+        }
+
+        if (classification === CaptureClassification.OBSERVE) {
+          storage.saveObservation(record);
+          return 0;
+        }
+
         const savedRecord = storage.saveRecord(record);
 
         if (stderr && typeof stderr.write === 'function') {
