@@ -21,6 +21,8 @@ import { statsCommand } from './commands/stats.js';
 import { clearCommand } from './commands/clear.js';
 import { completionsCommand } from './commands/completions.js';
 import { mcpCommand } from './commands/mcp.js';
+import { eventCommand } from './commands/event.js';
+import { setupCommand } from './commands/setup.js';
 
 export const COMMANDS = Object.freeze({
   run: runCommand,
@@ -48,6 +50,8 @@ export const COMMANDS = Object.freeze({
   clear: clearCommand,
   completions: completionsCommand,
   mcp: mcpCommand,
+  event: eventCommand,
+  setup: setupCommand,
   help: helpCommand,
   version: versionCommand
 });

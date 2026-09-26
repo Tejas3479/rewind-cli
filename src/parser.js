@@ -455,6 +455,36 @@ export function parseArgs(rawArgs = []) {
     } else if (arg === '--quiet' || arg === '-q') {
       flags.quiet = true;
       i++;
+    } else if (arg === '--data') {
+      i++;
+      if (i >= rawArgs.length) {
+        throw new InvalidArgumentError('Option "--data" requires a JSON string value.');
+      }
+      flags.data = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--data=')) {
+      flags.data = arg.slice('--data='.length);
+      i++;
+    } else if (arg === '--file') {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--file" requires a file path argument.');
+      }
+      flags.file = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--file=')) {
+      flags.file = arg.slice('--file='.length);
+      i++;
+    } else if (arg === '--profile') {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--profile" requires a profile name (core, full).');
+      }
+      flags.profile = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--profile=')) {
+      flags.profile = arg.slice('--profile='.length);
+      i++;
     } else if (arg.startsWith('-')) {
       throw new InvalidArgumentError(`Unknown option: "${arg}". Run "rewind --help" for usage.`);
     } else {
