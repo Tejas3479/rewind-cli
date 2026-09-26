@@ -100,7 +100,7 @@ function createMockStorage() {
 }
 
 // Utility to run the server on given inputs and collect outputs
-async function runServerWithInput(inputs, storage = createMockStorage()) {
+async function runServerWithInput(inputs, storage = createMockStorage(), options = {}) {
   const stdin = Readable.from(inputs.join('\n') + '\n');
   const stdout = new PassThrough();
   const stderr = new PassThrough();
@@ -113,7 +113,7 @@ async function runServerWithInput(inputs, storage = createMockStorage()) {
     }
   });
 
-  await startMcpServer(storage, { stdin, stdout, stderr });
+  await startMcpServer(storage, { stdin, stdout, stderr, ...options });
 
   return outputLines.map(line => JSON.parse(line));
 }
@@ -178,6 +178,17 @@ test('MCP Server Tests', async (t) => {
     assert.equal(outputs[0].result.protocolVersion, '2026-07-28');
   });
 
+  await t.test('server/discover negotiates protocol and returns capabilities (2026 revision)', async () => {
+    const inputs = ['{"jsonrpc":"2.0","id":100,"method":"server/discover"}'];
+    const outputs = await runServerWithInput(inputs);
+
+    assert.equal(outputs.length, 1);
+    assert.equal(outputs[0].id, 100);
+    assert.equal(outputs[0].result.protocolVersion, '2026-07-28');
+    assert.ok(outputs[0].result.capabilities.tools);
+    assert.equal(outputs[0].result.serverInfo.name, 'rewind');
+  });
+
   await t.test('notifications without id MUST NOT generate any response (JSON-RPC 2.0 Invariant)', async () => {
     const inputs = [
       '{"jsonrpc":"2.0","method":"notifications/initialized"}',
@@ -198,6 +209,7 @@ test('MCP Server Tests', async (t) => {
     const tools = outputs[0].result.tools;
     assert.equal(tools.length, 8);
 
+
     const names = tools.map(t => t.name).sort();
     assert.deepEqual(names, [
       'rewind_context',
@@ -205,9 +217,9 @@ test('MCP Server Tests', async (t) => {
       'rewind_history',
       'rewind_patterns',
       'rewind_recover',
+      'rewind_request_verification',
       'rewind_search',
-      'rewind_show',
-      'rewind_verify'
+      'rewind_show'
     ]);
 
     // Verify 2026 tool annotations
@@ -224,15 +236,32 @@ test('MCP Server Tests', async (t) => {
     assert.equal(contextTool.annotations.readOnlyHint, true);
     assert.equal(contextTool.annotations.idempotentHint, true);
 
-    const verifyTool = tools.find(t => t.name === 'rewind_verify');
-    assert.equal(verifyTool.annotations.readOnlyHint, false);
-    assert.equal(verifyTool.annotations.openWorldHint, true);
+    const verifyTool = tools.find(t => t.name === 'rewind_request_verification');
+    assert.equal(verifyTool.annotations.readOnlyHint, true);
+    assert.equal(verifyTool.annotations.openWorldHint, false);
+  });
+
+  await t.test('tools/list with profile=core returns only 4 core tools', async () => {
+    const inputs = ['{"jsonrpc":"2.0","id":1,"method":"tools/list"}'];
+    const outputs = await runServerWithInput(inputs, undefined, { profile: 'core' });
+
+    assert.equal(outputs.length, 1);
+    const tools = outputs[0].result.tools;
+    assert.equal(tools.length, 4);
+    const names = tools.map(t => t.name).sort();
+    assert.deepEqual(names, [
+      'rewind_context',
+      'rewind_recover',
+      'rewind_request_verification',
+      'rewind_search'
+    ]);
   });
 
   await t.test('tools/call rewind_context returns forensic context', async () => {
     const inputs = ['{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"rewind_context","arguments":{"incidentId":"1"}}}'];
     const outputs = await runServerWithInput(inputs);
 
+    assert.equal(outputs[0].result.resultType, 'complete');
     const content = outputs[0].result.content;
     assert.equal(content.length, 1);
     assert.equal(content[0].type, 'text');
@@ -285,15 +314,29 @@ test('MCP Server Tests', async (t) => {
     assert.equal(parsed.recoveryAttempts.length, 2);
   });
 
-  await t.test('tools/call rewind_verify executes command and closes trust loop', async () => {
-    const inputs = ['{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"rewind_verify","arguments":{"incidentId":"1"}}}'];
+  await t.test('tools/call rewind_request_verification returns plan without executing', async () => {
+    const inputs = ['{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"rewind_request_verification","arguments":{"incidentId":"1"}}}'];
     const outputs = await runServerWithInput(inputs);
 
     assert.equal(outputs[0].id, 7);
     const parsed = JSON.parse(outputs[0].result.content[0].text);
     assert.equal(parsed.incidentId, '1');
-    assert.equal(parsed.passed, true);
-    assert.equal(parsed.exitCode, 0);
+    assert.equal(parsed.action, 'REQUIRES_HOST_APPROVAL');
+    assert.equal(parsed.requiresApproval, true);
+    assert.equal(parsed.execution, 'none');
+    assert.ok(parsed.verifyCmd);
+    assert.ok(parsed.cliCommand);
+    assert.equal(parsed.safety.mayAutoExecute, false);
+  });
+
+  await t.test('tools/call rewind_verify (deprecated alias) returns same safe plan', async () => {
+    const inputs = ['{"jsonrpc":"2.0","id":70,"method":"tools/call","params":{"name":"rewind_verify","arguments":{"incidentId":"1"}}}'];
+    const outputs = await runServerWithInput(inputs);
+
+    assert.equal(outputs[0].id, 70);
+    const parsed = JSON.parse(outputs[0].result.content[0].text);
+    assert.equal(parsed.action, 'REQUIRES_HOST_APPROVAL');
+    assert.equal(parsed.execution, 'none');
   });
 
   await t.test('tools/call rewind_doctor returns ledger health diagnostics', async () => {
@@ -398,7 +441,7 @@ test('MCP Server Tests', async (t) => {
     assert.equal(outputs[0].id, 17);
     const text = outputs[0].result.messages[0].content.text;
     assert.ok(text.includes('node -e "process.exit(0)"'));
-    assert.ok(text.includes('rewind_verify'));
+    assert.ok(text.includes('rewind_request_verification') || text.includes('rewind_verify'));
   });
 
   await t.test('unknown method returns METHOD_NOT_FOUND error', async () => {

@@ -42,7 +42,7 @@ export async function startMcpServer(storage, options = {}) {
     const isNotification = msg.id === undefined || msg.id === null;
 
     try {
-      const result = await handleMessage(msg, storage);
+      const result = await handleMessage(msg, storage, options);
       // Notifications expect no response object whatsoever
       if (!isNotification && result !== null) {
         send(createResponse(msg.id, result));
@@ -61,9 +61,10 @@ export async function startMcpServer(storage, options = {}) {
   }
 }
 
-async function handleMessage(msg, storage) {
+async function handleMessage(msg, storage, options = {}) {
   switch (msg.method) {
-    case 'initialize': {
+    case 'initialize':
+    case 'server/discover': {
       const clientProtocol = msg.params?.protocolVersion;
       const negotiatedVersion = SUPPORTED_PROTOCOLS.includes(clientProtocol)
         ? clientProtocol
@@ -92,14 +93,18 @@ async function handleMessage(msg, storage) {
 
     // --- TOOLS ---
     case 'tools/list':
-      return { tools: getToolDefinitions() };
+      return { tools: getToolDefinitions(options.profile || 'full') };
 
     case 'tools/call': {
       const { name, arguments: args } = msg.params || {};
       if (!name) {
         throw new McpError(ErrorCodes.INVALID_PARAMS, 'Missing required parameter: "name"');
       }
-      return await executeTool(name, args || {}, storage);
+      const toolResult = await executeTool(name, args || {}, storage);
+      return {
+        ...toolResult,
+        resultType: 'complete'
+      };
     }
 
     // --- RESOURCES ---

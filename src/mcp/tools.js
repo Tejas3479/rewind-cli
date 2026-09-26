@@ -1,15 +1,23 @@
 import { searchRecords } from '../storage/search.js';
-import { executeAndCapture } from '../capture.js';
-import { tokenizeCommandLine, hasShellOperators } from '../parser.js';
 import { runDoctorDiagnostics } from '../storage/doctor.js';
 import { McpError, ErrorCodes } from './protocol.js';
 
+const CORE_TOOLS = new Set([
+  'rewind_context',
+  'rewind_recover',
+  'rewind_request_verification',
+  'rewind_search'
+]);
+
 /**
- * Returns the complete 8-tool definitions array with 2026 safety annotations.
+ * Returns tool definitions array with 2026 safety annotations.
+ * Supports filtering by profile ('core' for 4 essential tools, 'full' for all 8).
+ *
+ * @param {'core' | 'full'} [profile='full']
  * @returns {Array<object>}
  */
-export function getToolDefinitions() {
-  return [
+export function getToolDefinitions(profile = 'full') {
+  const allTools = [
     {
       name: 'rewind_context',
       description: 'Fetch complete forensic context, past failures, and verified fixes for an incident.',
@@ -162,26 +170,31 @@ export function getToolDefinitions() {
       }
     },
     {
-      name: 'rewind_verify',
-      description: 'Execute the stored verification command for an incident and seal the outcome in the trust loop.',
+      name: 'rewind_request_verification',
+      description: 'Request verification plan for an incident. Returns the stored verification command and instructions for host/user approval. Does NOT execute any commands.',
       annotations: {
-        readOnlyHint: false,
-        idempotentHint: false,
+        readOnlyHint: true,
+        idempotentHint: true,
         destructiveHint: false,
-        openWorldHint: true
+        openWorldHint: false
       },
       inputSchema: {
         type: 'object',
         properties: {
           incidentId: {
             type: 'string',
-            description: 'Incident ID to verify'
+            description: 'Incident ID to request verification for'
           }
         },
         required: ['incidentId']
       }
     }
   ];
+
+  if (profile === 'core') {
+    return allTools.filter(t => CORE_TOOLS.has(t.name));
+  }
+  return allTools;
 }
 
 /**
@@ -305,7 +318,8 @@ export async function executeTool(toolName, args, storage) {
         break;
       }
 
-      case 'rewind_verify': {
+      case 'rewind_verify':                   // Deprecated alias — safe, non-executing
+      case 'rewind_request_verification': {
         if (!args.incidentId) throwParamError('Missing required parameter: "incidentId"');
         if (typeof args.incidentId !== 'string') throwParamError('"incidentId" must be a string');
 
@@ -341,37 +355,22 @@ export async function executeTool(toolName, args, storage) {
           };
         }
 
-        // Execute verification command in isolated child process
-        const isShellCommand = hasShellOperators(verifyCmd);
-        const commandTokens = isShellCommand ? [verifyCmd] : tokenizeCommandLine(verifyCmd);
-
-        const verifyResult = await executeAndCapture(commandTokens, {
-          shell: isShellCommand,
-          timeout: 60000
-        });
-
-        const runOutput = (verifyResult.stdout || verifyResult.stderr || '').trim();
-        const exitCode = typeof verifyResult.exitCode === 'number' ? verifyResult.exitCode : (verifyResult.success ? 0 : 1);
-
-        let updatedRecord = record;
-        if (storage && typeof storage.recordVerificationRun === 'function') {
-          updatedRecord = storage.recordVerificationRun(record.id, targetAttempt.id, {
-            command: verifyCmd,
-            exitCode,
-            durationMs: verifyResult.durationMs,
-            output: runOutput
-          });
-        }
-
+        // Safety boundary: Return the verification plan for host/user approval.
+        // Rewind NEVER executes verification commands through MCP.
+        // The host integration or user must execute the command and record the result.
         result = {
           incidentId: record.id,
           attemptId: targetAttempt.id,
           verifyCmd,
-          exitCode,
-          durationMs: verifyResult.durationMs,
-          passed: exitCode === 0,
-          newStatus: updatedRecord?.status || (exitCode === 0 ? 'RECOVERED' : 'OPEN'),
-          outputSnippet: runOutput.slice(0, 500)
+          action: 'REQUIRES_HOST_APPROVAL',
+          requiresApproval: true,
+          execution: 'none',
+          instruction: 'Execute this verification command via your host terminal or approval mechanism, then record the result using the CLI.',
+          cliCommand: `rewind verify ${record.id}`,
+          safety: {
+            mayAutoExecute: false,
+            reason: 'Rewind cannot guarantee user-supplied verification commands are non-destructive. Host integrations own execution approval.'
+          }
         };
         break;
       }

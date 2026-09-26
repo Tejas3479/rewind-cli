@@ -122,7 +122,7 @@ export async function getPrompt(name, args = {}, storage) {
             `Verification Command: ${verifyCmd || '(none recorded)'}\n\n` +
             `Current Status: ${record.status}\n\n` +
             (verifyCmd
-              ? `Please execute verification via tool "rewind_verify" with incidentId: "${record.id}" to seal the outcome in the trust loop.`
+              ? `Please call tool "rewind_request_verification" with incidentId: "${record.id}" to retrieve the verification plan. Then execute the verification command through your host terminal or approval mechanism.`
               : `This incident has no verification command recorded. Please record one using tool "rewind_recover".`)
         }
       }]
