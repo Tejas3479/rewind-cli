@@ -5,6 +5,7 @@ import {
   computeLegacyFingerprint,
   fingerprintsMatch,
   formatShortFingerprint,
+  inferFingerprintVersion,
   FINGERPRINT_VERSION
 } from '../src/storage/fingerprint.js';
 
@@ -310,5 +311,28 @@ describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.
     assert.equal(formatShortFingerprint('short', 12), 'short');
     assert.equal(formatShortFingerprint(null), '');
     assert.equal(formatShortFingerprint(undefined), '');
+  });
+
+  test('inferFingerprintVersion strictly enforces digest length invariants', () => {
+    const fp64 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const fp16 = '0123456789abcdef';
+
+    // 64-hex string is always v2
+    assert.equal(inferFingerprintVersion(fp64), 2);
+    assert.equal(inferFingerprintVersion(fp64, 1), 2); // Invariant overrides mismatched explicit version
+    assert.equal(inferFingerprintVersion(fp64, 2), 2);
+
+    // 16-hex string is always v1
+    assert.equal(inferFingerprintVersion(fp16), 1);
+    assert.equal(inferFingerprintVersion(fp16, 2), 1); // Invariant overrides mismatched explicit version
+    assert.equal(inferFingerprintVersion(fp16, 1), 1);
+
+    // Non-standard or missing digests fall back to explicit version or default FINGERPRINT_VERSION
+    assert.equal(inferFingerprintVersion('', 1), 1);
+    assert.equal(inferFingerprintVersion('', 2), 2);
+    assert.equal(inferFingerprintVersion(null, 1), 1);
+    assert.equal(inferFingerprintVersion(null), 2);
+    assert.equal(inferFingerprintVersion('custom_fp', 1), 1);
+    assert.equal(inferFingerprintVersion('custom_fp'), 2);
   });
 });

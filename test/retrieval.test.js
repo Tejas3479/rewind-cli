@@ -175,6 +175,7 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(out.includes('Critical database outage'));
       assert.ok(out.includes('Exit Code:    17'));
       assert.ok(out.includes('Fingerprint:'));
+      assert.ok(out.includes('… (v2)'));
       assert.ok(out.includes('Normalized Signature:'));
       assert.ok(out.includes('ENVIRONMENT & REPOSITORY:'));
     } finally {
@@ -203,6 +204,8 @@ describe('Historical Retrieval: history & show (src/commands/history.js & show.j
       assert.ok(parsed.data.stderr.includes('Trace error in show json'));
       assert.ok(parsed.data.normalizedError);
       assert.ok(parsed.data.fingerprint);
+      assert.equal(parsed.data.fingerprint.length, 64);
+      assert.equal(parsed.data.fingerprintVersion, 2);
       assert.ok(parsed.data.git);
       assert.ok(parsed.data.environment);
     } finally {

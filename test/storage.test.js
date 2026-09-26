@@ -414,4 +414,60 @@ describe('Persistent Local Event Storage (src/storage/store.js)', () => {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
+
+  test('caller-supplied legacy fingerprints are never mislabeled as v2', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-legacy-label-test-'));
+    try {
+      const ledgerPath = path.join(tmpDir, '.rewind');
+      const store = new StorageEngine(ledgerPath).init();
+
+      // Older caller supplies 16-hex fingerprint without fingerprintVersion
+      const capWithoutVersion = createMockCapture({
+        stderr: 'Legacy error without explicit version',
+        fingerprint: '1122334455667788'
+      });
+      const saved1 = store.saveRecord(capWithoutVersion);
+      assert.equal(saved1.fingerprint, '1122334455667788');
+      assert.equal(saved1.fingerprintVersion, 1);
+
+      // Older caller supplies 16-hex fingerprint with mistaken version 2
+      const capWithMismatchedVersion = createMockCapture({
+        stderr: 'Legacy error with mistaken version 2',
+        fingerprint: '8877665544332211',
+        fingerprintVersion: 2
+      });
+      const saved2 = store.saveRecord(capWithMismatchedVersion);
+      assert.equal(saved2.fingerprint, '8877665544332211');
+      assert.equal(saved2.fingerprintVersion, 1);
+
+      store.close();
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('findByFingerprint collects ALL matching v2 records sharing a 16-char prefix', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-multi-prefix-test-'));
+    try {
+      const ledgerPath = path.join(tmpDir, '.rewind');
+      const store = new StorageEngine(ledgerPath).init();
+
+      const commonPrefix = 'abcdef0123456789';
+      const fpA = `${commonPrefix}000000000000000000000000000000000000000000000000`;
+      const fpB = `${commonPrefix}ffffffffffffffffffffffffffffffffffffffffffffffff`;
+
+      store.saveRecord(createMockCapture({ stderr: 'Error variant A', fingerprint: fpA, fingerprintVersion: 2 }));
+      store.saveRecord(createMockCapture({ stderr: 'Error variant B', fingerprint: fpB, fingerprintVersion: 2 }));
+
+      // Querying with the 16-char common prefix MUST return BOTH records, not just the first one
+      const matches = store.findByFingerprint(commonPrefix);
+      assert.equal(matches.length, 2);
+      const ids = matches.map(m => m.id).sort();
+      assert.deepEqual(ids, ['1', '2']);
+
+      store.close();
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
 });
