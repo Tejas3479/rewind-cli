@@ -1,6 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeFingerprint } from '../src/storage/fingerprint.js';
+import {
+  computeFingerprint,
+  computeLegacyFingerprint,
+  fingerprintsMatch,
+  formatShortFingerprint,
+  FINGERPRINT_VERSION
+} from '../src/storage/fingerprint.js';
 
 describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.js)', () => {
   test('identical errors produce identical fingerprints', () => {
@@ -237,7 +243,72 @@ describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.
     });
 
     assert.ok(res.fingerprint);
-    assert.equal(res.fingerprint.length, 16);
+    assert.equal(res.fingerprint.length, 64);
+    assert.equal(res.fingerprintVersion, 2);
     assert.equal(res.normalizedError, '');
+  });
+
+  test('v2 default produces 64-hex full SHA-256 with exact 16-hex prefix matching legacy v1', () => {
+    const failureParams = {
+      command: 'node',
+      args: ['app.js'],
+      exitCode: 1,
+      stderr: 'TypeError: Cannot read properties of undefined (reading "id")'
+    };
+
+    const v2 = computeFingerprint(failureParams);
+    const v1 = computeLegacyFingerprint(failureParams);
+
+    assert.equal(v2.fingerprintVersion, 2);
+    assert.equal(v2.fingerprint.length, 64);
+    assert.match(v2.fingerprint, /^[0-9a-f]{64}$/);
+
+    assert.equal(v1.fingerprintVersion, 1);
+    assert.equal(v1.fingerprint.length, 16);
+    assert.match(v1.fingerprint, /^[0-9a-f]{16}$/);
+
+    // Mathematical invariant: v1 is identically the first 16 characters of v2
+    assert.equal(v2.fingerprint.slice(0, 16), v1.fingerprint);
+    assert.equal(v2.legacyFingerprint, v1.fingerprint);
+  });
+
+  test('fingerprintsMatch handles exact matches and cross-version prefix matching', () => {
+    const failureParams = {
+      command: 'npm',
+      args: ['run', 'build'],
+      exitCode: 1,
+      stderr: 'RollupError: Could not resolve entry module'
+    };
+
+    const v2 = computeFingerprint(failureParams);
+    const v1 = computeLegacyFingerprint(failureParams);
+
+    // Exact matches
+    assert.equal(fingerprintsMatch(v2.fingerprint, v2.fingerprint), true);
+    assert.equal(fingerprintsMatch(v1.fingerprint, v1.fingerprint), true);
+
+    // Cross-version matches
+    assert.equal(fingerprintsMatch(v2.fingerprint, v1.fingerprint), true);
+    assert.equal(fingerprintsMatch(v1.fingerprint, v2.fingerprint), true);
+
+    // Mismatches
+    const different = computeFingerprint({ command: 'git', exitCode: 1, stderr: 'fatal: error' });
+    assert.equal(fingerprintsMatch(v2.fingerprint, different.fingerprint), false);
+    assert.equal(fingerprintsMatch(v1.fingerprint, different.fingerprint), false);
+
+    // Edge cases
+    assert.equal(fingerprintsMatch(null, v2.fingerprint), false);
+    assert.equal(fingerprintsMatch('', v2.fingerprint), false);
+    assert.equal(fingerprintsMatch('short', v2.fingerprint), false);
+  });
+
+  test('formatShortFingerprint formats fingerprints safely for UI presentation', () => {
+    const fp64 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    assert.equal(formatShortFingerprint(fp64), '0123456789ab…');
+    assert.equal(formatShortFingerprint(fp64, 8), '01234567…');
+    assert.equal(formatShortFingerprint(fp64, 64), fp64);
+    assert.equal(formatShortFingerprint('short', 12), 'short');
+    assert.equal(formatShortFingerprint(null), '');
+    assert.equal(formatShortFingerprint(undefined), '');
   });
 });

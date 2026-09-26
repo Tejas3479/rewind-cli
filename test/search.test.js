@@ -102,6 +102,25 @@ describe('Conservative Near-Match Search (src/storage/search.js)', () => {
     assert.equal(match.confidence, 'LIKELY');
   });
 
+  test('exact fingerprint match scores 1.0 across v1/v2 versions', () => {
+    const v1Fp = '83282360259bab81';
+    const v2Fp = '83282360259bab81e4b6c89055aa42eca9455fd21dec05380123456789abcdef';
+
+    // 1. Query with 64-char v2 against legacy 16-char v1 record
+    const legacyRec = createSampleRecord({ fingerprint: v1Fp, status: IncidentStatus.RECOVERED });
+    const matchLegacy = scoreRecord(v2Fp, legacyRec);
+    assert.equal(matchLegacy.score, 1.0);
+    assert.equal(matchLegacy.confidence, 'VERIFIED');
+    assert.ok(matchLegacy.reason.includes('Exact fingerprint match'));
+
+    // 2. Query with 16-char v1 against modern 64-char v2 record
+    const modernRec = createSampleRecord({ fingerprint: v2Fp, status: IncidentStatus.RECOVERED });
+    const matchModern = scoreRecord(v1Fp, modernRec);
+    assert.equal(matchModern.score, 1.0);
+    assert.equal(matchModern.confidence, 'VERIFIED');
+    assert.ok(matchModern.reason.includes('Exact fingerprint match'));
+  });
+
   test('near-match with token overlap scores predictably', () => {
     const rec = createSampleRecord({
       normalizedError: 'FATAL: Database connection pool exhausted on port 5432'
