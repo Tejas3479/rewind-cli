@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2026-09-21
 
 ### Added
-- **MCP Server Upgrade (A+ Specification Conformance)**:
+- **MCP Server Upgrade (Core MCP Support)**:
   - Expanded tool suite from 5 to 8 tools with `rewind_verify`, `rewind_doctor`, and `rewind_patterns`.
   - Added 2026 Model Context Protocol Tool Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) across all tool definitions.
   - Implemented MCP Resources with static endpoints (`rewind://incidents/latest`, `rewind://doctor/health`, `rewind://patterns`) and RFC 6570 URI templates (`rewind://incidents/{id}`, `rewind://incidents/{id}/evidence`).

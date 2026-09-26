@@ -331,7 +331,7 @@ Or via direct stdio pipe from any compliant host.
 | `rewind_doctor` | `readOnlyHint: true`, `idempotentHint: true` | Runs a 15-check cryptographic and operational audit of the Rewind ledger, projections, and journal health. | — | — |
 | `rewind_patterns` | `readOnlyHint: true`, `idempotentHint: true` | Returns empirical failure clusters, flakiness diagnostics, and recurring regression trends. | — | — |
 | `rewind_recover` | `readOnlyHint: false`, `destructiveHint: false` | Records an agent's root-cause hypothesis and proposed change into the append-only ledger (`SUSPECTED`). | `incidentId` (string), `cause` (string), `change` (string) | `verifyCmd` (string) |
-| `rewind_verify` | `readOnlyHint: false`, `destructiveHint: false` | Executes the stored verification command, captures output, and autonomously seals the incident state to `FIXED`/`VERIFIED` or `FAILED`. | `incidentId` (string) | — |
+| `rewind_request_verification` | `readOnlyHint: true`, `idempotentHint: true` | Returns the stored verification plan for host/user approval. Does NOT execute any commands. Use `rewind verify <id>` CLI for human-initiated execution. `rewind_verify` is accepted as a deprecated alias. | `incidentId` (string) | — |
 
 ---
 
@@ -361,7 +361,7 @@ Rewind ships with production prompt templates that guide LLM agents through stru
    - Injects the latest terminal failure, parsed stack traces, and **Negative Memory alerts** (disproved causes from prior failed remediation attempts).
    - Instructs the agent to formulate a new, non-repeating hypothesis.
 2. **`verify-fix`**:
-   - Guides the agent through validating code modifications using the stored verification command (`rewind_verify`), completing the Trust Loop.
+   - Guides the agent through validating code modifications using the stored verification command (`rewind_request_verification`), completing the Trust Loop.
 3. **`explain-incident`**:
    - Takes `incidentId` and asks the model to produce a root-cause explanation suitable for human teammates or pull request summaries.
 

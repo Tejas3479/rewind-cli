@@ -1,7 +1,7 @@
 {
   "name": "rewind-cli",
   "version": "1.0.0",
-  "description": "Remember what fixed it. A verified-recovery ledger for the terminal.",
+  "description": "Verified failure memory for coding agents with selective recall and disciplined abstention.",
   "type": "module",
   "main": "src/index.js",
   "exports": {
