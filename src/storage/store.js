@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { isValidRecord, normalizeRecordToCurrentSchema, boundOutput } from './record.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from './state.js';
-import { computeFingerprint } from './fingerprint.js';
+import { computeFingerprint, inferFingerprintVersion } from './fingerprint.js';
 import { evaluateStaleness } from './staleness.js';
 import { extractNegativeMemory } from './negative_memory.js';
 import { analyzeEvidenceConflicts } from './contradiction.js';
@@ -674,11 +674,14 @@ export class StorageEngine {
       if (fingerprint.length === 64) {
         list = this.fingerprintIndex.get(fingerprint.slice(0, 16));
       } else if (fingerprint.length === 16) {
+        const matches = [];
         for (const [key, records] of this.fingerprintIndex.entries()) {
           if (key.length === 64 && key.startsWith(fingerprint)) {
-            list = records;
-            break;
+            matches.push(...records);
           }
+        }
+        if (matches.length > 0) {
+          list = matches;
         }
       }
     }
@@ -699,11 +702,14 @@ export class StorageEngine {
       if (fingerprint.length === 64) {
         list = this.obsFingerprintIndex.get(fingerprint.slice(0, 16));
       } else if (fingerprint.length === 16) {
+        const matches = [];
         for (const [key, records] of this.obsFingerprintIndex.entries()) {
           if (key.length === 64 && key.startsWith(fingerprint)) {
-            list = records;
-            break;
+            matches.push(...records);
           }
+        }
+        if (matches.length > 0) {
+          list = matches;
         }
       }
     }
@@ -802,7 +808,7 @@ export class StorageEngine {
         exitCode: typeof captureResult.exitCode === 'number' ? captureResult.exitCode : 1,
         signal: captureResult.signal || null,
         fingerprint: fingerprint || '',
-        fingerprintVersion: captureResult.fingerprintVersion || computed.fingerprintVersion || 2,
+        fingerprintVersion: inferFingerprintVersion(fingerprint, captureResult.fingerprintVersion || computed.fingerprintVersion),
         normalizedError: normalizedError || '',
         evidenceHash: evidenceHash || '',
         evidenceRef: evidenceRef || '',
@@ -875,7 +881,7 @@ export class StorageEngine {
     const payload = {
       id: obsId,
       fingerprint,
-      fingerprintVersion: captureResult.fingerprintVersion || computed.fingerprintVersion || 2,
+      fingerprintVersion: inferFingerprintVersion(fingerprint, captureResult.fingerprintVersion || computed.fingerprintVersion),
       normalizedError: normalizedError || '',
       command: captureResult.command || '',
       args: Array.isArray(captureResult.args) ? captureResult.args : [],
@@ -1033,6 +1039,7 @@ export class StorageEngine {
       exitCode: obs.exitCode,
       signal: obs.signal,
       fingerprint: obs.fingerprint,
+      fingerprintVersion: inferFingerprintVersion(obs.fingerprint, obs.fingerprintVersion),
       normalizedError: obs.normalizedError,
       evidenceHash,
       evidenceRef,

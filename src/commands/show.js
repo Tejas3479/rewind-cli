@@ -4,6 +4,7 @@ import { sanitizeForDisplay } from '../sanitizer.js';
 import { normalizeId } from '../storage/store.js';
 import { formatNegativeMemorySection } from '../storage/negative_memory.js';
 import { formatContradictionSection } from '../storage/contradiction.js';
+import { formatShortFingerprint } from '../storage/fingerprint.js';
 
 /**
  * Handler for `rewind show <id> [options]`.
@@ -82,7 +83,8 @@ export async function showCommand({ context }) {
   stdout.write(`${s.bold('FAILURE SIGNATURE:')}\n`);
   const fpVersion = record.fingerprintVersion || (record.fingerprint?.length === 64 ? 2 : 1);
   const fpVersionSuffix = record.fingerprint ? s.dim(` (v${fpVersion})`) : '';
-  stdout.write(`  ${s.dim('Fingerprint:'.padEnd(14))} ${s.cyan(record.fingerprint || 'none')}${fpVersionSuffix}\n`);
+  const displayFp = record.fingerprint ? formatShortFingerprint(record.fingerprint) : 'none';
+  stdout.write(`  ${s.dim('Fingerprint:'.padEnd(14))} ${s.cyan(displayFp)}${fpVersionSuffix}\n`);
   if (record.normalizedError) {
     stdout.write(`  ${s.dim('Normalized Signature:')}\n`);
     const cleanNorm = sanitizeForDisplay(record.normalizedError);

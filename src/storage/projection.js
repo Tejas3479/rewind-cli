@@ -10,6 +10,7 @@ import {
   assertValidAttemptTransition
 } from './state.js';
 import { normalizeRecordToCurrentSchema } from './record.js';
+import { inferFingerprintVersion } from './fingerprint.js';
 
 export const PROJECTION_SCHEMA_VERSION = 1;
 
@@ -33,7 +34,7 @@ export function applyEventToRecordMap(incidents, event) {
       const newRecord = {
         id,
         fingerprint: payload.fingerprint || '',
-        fingerprintVersion: payload.fingerprintVersion || (payload.fingerprint?.length === 64 ? 2 : 1),
+        fingerprintVersion: inferFingerprintVersion(payload.fingerprint, payload.fingerprintVersion),
         command: payload.command || '',
         args: Array.isArray(payload.args) ? payload.args : [],
         fullCommand: payload.fullCommand || `${payload.command || ''} ${(payload.args || []).join(' ')}`.trim(),
@@ -71,7 +72,7 @@ export function applyEventToRecordMap(incidents, event) {
       const newRecord = {
         id,
         fingerprint: payload.fingerprint || '',
-        fingerprintVersion: payload.fingerprintVersion || (payload.fingerprint?.length === 64 ? 2 : 1),
+        fingerprintVersion: inferFingerprintVersion(payload.fingerprint, payload.fingerprintVersion),
         command: payload.command || '',
         args: Array.isArray(payload.args) ? payload.args : [],
         fullCommand: payload.fullCommand || `${payload.command || ''} ${(payload.args || []).join(' ')}`.trim(),
@@ -341,7 +342,7 @@ export function projectEventsToObservations(events = []) {
       observations.set(obsId, {
         id: obsId,
         fingerprint: payload.fingerprint || '',
-        fingerprintVersion: payload.fingerprintVersion || (payload.fingerprint?.length === 64 ? 2 : 1),
+        fingerprintVersion: inferFingerprintVersion(payload.fingerprint, payload.fingerprintVersion),
         command: payload.command || '',
         args: Array.isArray(payload.args) ? payload.args : [],
         fullCommand: payload.fullCommand || '',

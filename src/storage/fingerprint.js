@@ -41,6 +41,29 @@ export function fingerprintsMatch(fpA, fpB) {
 }
 
 /**
+ * Infers and validates the fingerprint schema version from a fingerprint digest
+ * and optional explicit version.
+ *
+ * Invariant rules:
+ * - 64 hex characters -> version 2
+ * - 16 hex characters -> version 1
+ * - Otherwise fallback to explicitVersion (if 1 or 2) or default FINGERPRINT_VERSION (2)
+ *
+ * @param {string} [fingerprint]
+ * @param {number} [explicitVersion]
+ * @returns {number} 1 or 2
+ */
+export function inferFingerprintVersion(fingerprint, explicitVersion) {
+  const fp = typeof fingerprint === 'string' ? fingerprint.trim() : '';
+  if (fp.length === 64) return 2;
+  if (fp.length === 16) return 1;
+  if (explicitVersion === 1 || explicitVersion === 2) {
+    return explicitVersion;
+  }
+  return FINGERPRINT_VERSION;
+}
+
+/**
  * Generates a deterministic SHA-256 fingerprint from failure properties.
  *
  * Fields contributing to the fingerprint (in order):

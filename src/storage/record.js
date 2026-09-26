@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { computeFingerprint } from './fingerprint.js';
+import { computeFingerprint, inferFingerprintVersion } from './fingerprint.js';
 import { IncidentStatus, RecoveryAttemptStatus, ProvenanceType, EvidenceQuality } from './state.js';
 import { parseDiagnostic } from '../diagnostics/index.js';
 
@@ -73,7 +73,7 @@ export function boundOutput(text) {
  * @typedef {object} IncidentRecord
  * @property {string} id - Monotonically increasing unique record ID (e.g. "1")
  * @property {string} fingerprint - Deterministic failure hash (64 hex chars for v2, 16 hex chars for legacy v1)
- * @property {number} [fingerprintVersion=1] - Fingerprint schema version (1 = legacy 16-hex, 2 = full 64-hex SHA-256)
+ * @property {number} [fingerprintVersion=2] - Fingerprint schema version (1 = legacy 16-hex, 2 = full 64-hex SHA-256)
  * @property {string} status - OBSERVED | OPEN | RECOVERED | REGRESSED | RESOLVED | success
  * @property {string} command - Target command executable
  * @property {string[]} args - Target command arguments
@@ -125,10 +125,16 @@ export function createRecord(id, captureResult, options = {}) {
 
   const status = options.initialState || (captureResult.success ? 'success' : IncidentStatus.OBSERVED);
 
+  const effectiveFingerprint = captureResult.fingerprint || fingerprint;
+  const effectiveFingerprintVersion = inferFingerprintVersion(
+    effectiveFingerprint,
+    captureResult.fingerprintVersion || fingerprintVersion
+  );
+
   const baseRecord = {
     id: String(id),
-    fingerprint,
-    fingerprintVersion: captureResult.fingerprintVersion || fingerprintVersion || 2,
+    fingerprint: effectiveFingerprint,
+    fingerprintVersion: effectiveFingerprintVersion,
     status,
     command: captureResult.command,
     args: [...(captureResult.args || [])],
@@ -257,10 +263,8 @@ export function normalizeRecordToCurrentSchema(record) {
     };
   });
 
-  // Normalize fingerprint version: 2 if 64 hex chars, otherwise legacy 1
-  if (!copy.fingerprintVersion) {
-    copy.fingerprintVersion = (copy.fingerprint && copy.fingerprint.length === 64) ? 2 : 1;
-  }
+  // Normalize fingerprint version using centralized inference
+  copy.fingerprintVersion = inferFingerprintVersion(copy.fingerprint, copy.fingerprintVersion);
 
   // Normalize legacy status string
   if (copy.status === 'FIXED' || copy.status === 'SUSPECTED') {
