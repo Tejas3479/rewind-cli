@@ -42,6 +42,8 @@ export async function eventCommand({ context }) {
   }
 
   const result = processAgentEvent(rawData, storage, {
+    source: parsedArgs.flags.source || null,
+    eventType: parsedArgs.flags.event || null,
     cwd: parsedArgs.flags.cwd || config?.rootDir || process.cwd()
   });
 

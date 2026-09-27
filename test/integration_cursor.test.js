@@ -15,11 +15,14 @@ describe('Cursor Integration & Bridge (src/integrations/cursor.js)', () => {
     assert.equal(config.hooks.postToolUseFailure[0].timeout, 5);
   });
 
-  test('generateCursorScript generates executable node bridge script', () => {
+  test('generateCursorScript generates executable node bridge script with 5s watchdog', () => {
     const script = generateCursorScript();
     assert.ok(script.includes('#!/usr/bin/env node'));
     assert.ok(script.includes('event'));
     assert.ok(script.includes('--json'));
+    assert.ok(script.includes('--source'));
+    assert.ok(script.includes('cursor'));
+    assert.ok(script.includes('5000'));
     assert.ok(script.includes('additional_context'));
   });
 

@@ -18,11 +18,14 @@ describe('Gemini CLI Integration & Bridge (src/integrations/gemini.js)', () => {
     assert.ok(config.hooks.AfterTool[0].hooks[0].command.includes('rewind-gemini-hook.js'));
   });
 
-  test('generateGeminiScript generates executable bridge script with native envelope', () => {
+  test('generateGeminiScript generates executable bridge script with native envelope and 5s watchdog', () => {
     const script = generateGeminiScript();
     assert.ok(script.includes('#!/usr/bin/env node'));
     assert.ok(script.includes('event'));
     assert.ok(script.includes('--json'));
+    assert.ok(script.includes('--source'));
+    assert.ok(script.includes('gemini'));
+    assert.ok(script.includes('5000'));
     assert.ok(script.includes('hookSpecificOutput'));
     assert.ok(script.includes('AfterTool'));
   });

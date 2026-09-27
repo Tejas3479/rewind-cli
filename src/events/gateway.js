@@ -1,21 +1,28 @@
-import { redactSecrets, sanitizeForDisplay } from '../sanitizer.js';
-import { parseDiagnostic } from '../diagnostics/index.js';
-import { captureSafeEnvironment } from '../environment.js';
-import { readGitMetadata } from '../git.js';
-import { tokenizeCommandLine } from '../parser.js';
-import { classifyCapture, CaptureClassification } from '../storage/capture_policy.js';
+import { Platform, EventType, CaptureOrigin } from './model.js';
+import { normalizeCursorPayload } from './normalizers/cursor.js';
+import { normalizeGeminiPayload } from './normalizers/gemini.js';
+import { normalizeCodexPayload } from './normalizers/codex.js';
+import { normalizeClaudePayload } from './normalizers/claude.js';
+import { normalizeGenericPayload } from './normalizers/generic.js';
+import { formatAgentAdditionalContext } from './formatters/context_text.js';
+import { formatCursorOutput } from './formatters/cursor.js';
+import { formatGeminiOutput } from './formatters/gemini.js';
+import { formatCodexOutput } from './formatters/codex.js';
+import { formatClaudeOutput, formatClaudePreflightOutput } from './formatters/claude.js';
+import { formatGenericOutput } from './formatters/generic.js';
+import { CaptureService } from '../storage/service.js';
+import { evaluatePreflightRecall } from '../storage/preflight.js';
+
+export { formatAgentAdditionalContext };
 
 /**
- * Normalizes vendor-specific agent failure hook payloads into a standard Rewind event.
- * Handles payloads from:
- * - Cursor postToolUseFailure
- * - Gemini CLI AfterTool
- * - Codex PostToolUse
- * - Generic Rewind JSON
+ * Normalizes vendor-specific agent hook payloads into a standard CanonicalExecution event.
+ * Dispatches explicitly on source if provided; otherwise uses conservative compound auto-detection.
+ * Invariant: `tool_input` alone will never infer Cursor.
  *
  * @param {object|string} rawPayload
  * @param {object} [contextOptions={}]
- * @returns {object} Normalized failure event
+ * @returns {import('./model.js').CanonicalExecution}
  */
 export function normalizeEvent(rawPayload, contextOptions = {}) {
   let data = rawPayload;
@@ -29,309 +36,115 @@ export function normalizeEvent(rawPayload, contextOptions = {}) {
 
   data = data && typeof data === 'object' ? data : {};
 
-  let source = contextOptions.source || data.source || 'generic';
-  let sessionId = null;
-  let toolName = null;
-  let rawCmd = '';
-  let cwd = contextOptions.cwd || data.cwd || process.cwd();
-  let exitCode = null;
-  let signal = null;
-  let durationMs = 0;
-  let stderr = '';
-  let stdout = '';
+  const explicitSource = contextOptions.source || data.platform || data.source;
 
-  // 1. Detect Cursor hook payload (has conversation_id or tool_input or tool_output)
-  if (source === 'cursor' || data.conversation_id || data.tool_input || data.tool_output) {
-    source = 'cursor';
-    sessionId = data.conversation_id || null;
-    toolName = data.tool_name || null;
-    const input = data.tool_input || {};
-    rawCmd = input.command || input.cmd || data.command || '';
-    cwd = input.cwd || cwd;
-    const output = data.tool_output || {};
-    if (typeof output.exit_code === 'number') {
-      exitCode = output.exit_code;
-    } else if (typeof data.exitCode === 'number') {
-      exitCode = data.exitCode;
-    }
-    stderr = output.stderr || data.error || '';
-    stdout = output.stdout || '';
-    durationMs = typeof data.duration_ms === 'number' ? data.duration_ms : 0;
+  if (explicitSource === Platform.CURSOR || explicitSource === 'cursor') {
+    return normalizeCursorPayload(data, contextOptions);
   }
-  // 2. Detect Gemini CLI hook payload (has session_id or parameters or hookSpecificOutput)
-  else if (source === 'gemini' || data.hookSpecificOutput || data.session_id || data.parameters || data.tool_input || (data.result && data.tool_name) || (data.tool_response && data.tool_name)) {
-    source = 'gemini';
-    sessionId = data.session_id || null;
-    toolName = data.tool_name || null;
-    const params = data.parameters || data.tool_input || {};
-    rawCmd = params.command || params.cmd || data.command || '';
-    cwd = params.cwd || cwd;
-    const res = data.result || data.tool_response || {};
-    if (typeof res.exit_code === 'number') {
-      exitCode = res.exit_code;
-    } else if (typeof data.exitCode === 'number') {
-      exitCode = data.exitCode;
-    }
-    stderr = res.error || res.stderr || data.error || '';
-    stdout = res.stdout || '';
+  if (explicitSource === Platform.GEMINI || explicitSource === 'gemini') {
+    return normalizeGeminiPayload(data, contextOptions);
   }
-  // 3. Detect Codex hook payload
-  else if (source === 'codex' || data.tool || (data.input && data.output)) {
-    source = 'codex';
-    toolName = data.tool || null;
-    const input = data.input || {};
-    rawCmd = input.command || input.cmd || data.command || '';
-    cwd = input.cwd || cwd;
-    const output = data.output || {};
-    if (typeof output.exitCode === 'number') {
-      exitCode = output.exitCode;
-    } else if (typeof output.exit_code === 'number') {
-      exitCode = output.exit_code;
-    } else if (typeof data.exitCode === 'number') {
-      exitCode = data.exitCode;
-    }
-    stderr = output.stderr || data.error || '';
-    stdout = output.stdout || '';
+  if (explicitSource === Platform.CODEX || explicitSource === 'codex') {
+    return normalizeCodexPayload(data, contextOptions);
   }
-  // 4. Generic / Direct Rewind payload
-  else {
-    source = data.source || 'generic';
-    sessionId = data.sessionId || null;
-    toolName = data.toolName || null;
-    rawCmd = data.command || data.fullCommand || data.cmd || '';
-    cwd = data.cwd || cwd;
-    if (typeof data.exitCode === 'number') {
-      exitCode = data.exitCode;
-    }
-    signal = data.signal || null;
-    durationMs = typeof data.durationMs === 'number' ? data.durationMs : 0;
-    stderr = data.stderr || data.error || '';
-    stdout = data.stdout || '';
+  if (explicitSource === Platform.CLAUDE || explicitSource === 'claude') {
+    return normalizeClaudePayload(data, contextOptions);
+  }
+  if (explicitSource === Platform.GENERIC || explicitSource === 'generic') {
+    return normalizeGenericPayload(data, contextOptions);
   }
 
-  // Determine explicit outcome (do NOT assume failure if exitCode is missing without errors)
-  let outcome = 'UNKNOWN';
-  if (signal) {
-    outcome = 'INTERRUPTED';
-    if (exitCode === null) exitCode = 130;
-  } else if (exitCode === 0) {
-    outcome = 'SUCCESS';
-  } else if (typeof exitCode === 'number' && exitCode > 0) {
-    outcome = 'FAILURE';
-  } else if (data.error || (typeof stderr === 'string' && stderr.trim().length > 0)) {
-    outcome = 'FAILURE';
-    exitCode = 1;
-  } else if (data.success === false) {
-    outcome = 'FAILURE';
-    exitCode = 1;
-  } else if (data.success === true) {
-    outcome = 'SUCCESS';
-    exitCode = 0;
-  } else {
-    outcome = 'UNKNOWN';
-    exitCode = null;
-  }
-
-  const isSuccess = outcome === 'SUCCESS' || exitCode === 0;
-
-  // Tokenize command line
-  const trimmedCmd = String(rawCmd).trim();
-  const tokens = trimmedCmd ? tokenizeCommandLine(trimmedCmd) : [];
-  const executable = tokens[0] || trimmedCmd;
-  const args = tokens.slice(1);
-
-  // Apply strict privacy redaction
-  const fullCommandSanitized = redactSecrets(trimmedCmd);
-  const argsSanitized = args.map((a) => redactSecrets(a));
-  const stderrSanitized = sanitizeForDisplay(stderr);
-  const stdoutSanitized = sanitizeForDisplay(stdout);
-
-  const safeEnv = captureSafeEnvironment();
-  const gitMeta = readGitMetadata(cwd);
-  const diagnostic = parseDiagnostic(stderrSanitized || stderr, stdoutSanitized || stdout, { command: executable, cwd });
-
-  const nowIso = new Date().toISOString();
-  const startTimeIso = new Date(Date.now() - durationMs).toISOString();
-
-  return {
-    source,
-    sessionId,
-    toolName,
-    command: executable,
-    args: argsSanitized,
-    fullCommand: fullCommandSanitized,
-    cwd,
-    startTime: startTimeIso,
-    endTime: nowIso,
-    durationMs,
-    exitCode,
-    outcome,
-    signal,
-    timedOut: false,
-    success: isSuccess,
-    stdoutRaw: '',
-    stderrRaw: stderr,
-    stdout: stdoutSanitized,
-    stderr: stderrSanitized,
-    diagnostic,
-    isTruncated: false,
-    git: gitMeta,
-    environment: safeEnv,
-    timestamp: nowIso
-  };
-}
-
-/**
- * Formats structured additionalContext text for agent context injection.
- *
- * @param {import('../storage/surfacing.js').SurfacingDecision} decision
- * @param {string} [incidentId]
- * @returns {string|null}
- */
-export function formatAgentAdditionalContext(decision, incidentId = '') {
-  if (!decision || decision.action === 'SILENCE') {
-    return null;
-  }
-
-  const parts = [];
-
-  if (decision.action === 'SURFACE' && decision.bestCandidate) {
-    const fix = decision.bestCandidate;
-    parts.push(`[Rewind Verified Fix]`);
-    parts.push(`Known failure matches verified recovery from Incident #${fix.incidentId}:`);
-    if (fix.cause) parts.push(`Cause: ${fix.cause}`);
-    if (fix.change) parts.push(`Verified Fix: ${fix.change}`);
-    if (fix.verifyCmd) parts.push(`Verification Command: ${fix.verifyCmd}`);
-
-    if (decision.relevantFailedApproaches && decision.relevantFailedApproaches.length > 0) {
-      parts.push(`\nKnown Failed Approaches (DO NOT RETRY):`);
-      for (const fa of decision.relevantFailedApproaches) {
-        parts.push(`- Avoid: "${fa.change || fa.cause || 'Unknown'}" (Failed)`);
-      }
-    }
-
-    if (fix.verifyCmd) {
-      parts.push(`\nImportant: Verification commands require host/user execution approval.`);
-    }
-  } else if (decision.action === 'CAUTION') {
-    parts.push(`[Rewind Caution]`);
-    parts.push(`Prior failure detected: ${decision.reason}`);
-    if (decision.bestCandidate) {
-      const fix = decision.bestCandidate;
-      parts.push(`Historical Fix: ${fix.change || fix.cause}`);
-      if (fix.stalenessReasons && fix.stalenessReasons.length > 0) {
-        parts.push(`Caveat: ${fix.stalenessReasons.join('; ')}`);
-      }
-    }
-    if (decision.relevantFailedApproaches && decision.relevantFailedApproaches.length > 0) {
-      parts.push(`Known failed attempts:`);
-      for (const fa of decision.relevantFailedApproaches) {
-        parts.push(`• Failed: ${fa.change || fa.cause}`);
-      }
-    }
-    if (incidentId) {
-      parts.push(`Run "rewind show ${incidentId}" for complete forensic evidence.`);
-    }
-  }
-
-  return parts.join('\n');
+  // Fallback to conservative compound auto-detection
+  return normalizeGenericPayload(data, contextOptions);
 }
 
 /**
  * Processes an incoming agent event through the complete Gateway pipeline:
- * 1. Normalize vendor payload
- * 2. Classify capture (DISCARD / OBSERVE / PROMOTE)
- * 3. Store observation or incident
- * 4. Compute surfacing decision
- * 5. Return platform-compatible response JSON
+ * 1. Normalize vendor payload (explicit or conservative compound)
+ * 2. Ingest execution or evaluate preflight recall
+ * 3. Return platform-compatible response JSON
  *
  * @param {object|string} rawPayload
  * @param {import('../storage/store.js').StorageEngine} storage
- * @param {object} [options]
+ * @param {object} [options={}]
  * @returns {object} Machine-readable gateway result
  */
 export function processAgentEvent(rawPayload, storage, options = {}) {
   const start = Date.now();
-  const event = normalizeEvent(rawPayload, options);
-
-  const eventName = event.source === 'codex' ? 'PostToolUse' : 'AfterTool';
-
-  // If command is empty or success or benign UNKNOWN without error -> DISCARD
-  if (!event.command || event.success || event.outcome === 'SUCCESS' || event.outcome === 'UNKNOWN') {
-    return {
-      action: 'SILENCE',
-      classification: CaptureClassification.DISCARD,
-      matchType: 'NONE',
-      durationMs: Date.now() - start,
-      additionalContext: null,
-      additional_context: null,
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: null
-      }
-    };
-  }
-
-  const classification = classifyCapture(event, storage, 'agent_event');
-
-  if (classification === CaptureClassification.DISCARD) {
-    return {
-      action: 'SILENCE',
-      classification: CaptureClassification.DISCARD,
-      matchType: 'NONE',
-      durationMs: Date.now() - start,
-      additionalContext: null,
-      additional_context: null,
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: null
-      }
-    };
-  }
-
-  if (classification === CaptureClassification.OBSERVE) {
-    const obs = storage ? storage.saveObservation(event) : null;
-    return {
-      action: 'SILENCE',
-      classification: CaptureClassification.OBSERVE,
-      observationId: obs?.id || null,
-      matchType: 'NONE',
-      durationMs: Date.now() - start,
-      additionalContext: null,
-      additional_context: null,
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: null
-      }
-    };
-  }
-
-  // PROMOTE: Save full incident record and compute surfacing decision
-  let savedRecord = null;
-  let decision = { action: 'SILENCE', reason: '', matchType: 'NONE', bestCandidate: null, relevantFailedApproaches: [] };
-
-  if (storage) {
-    savedRecord = storage.saveRecord(event);
-    decision = storage.getSurfacingDecision(savedRecord);
-  }
-
-  const contextText = formatAgentAdditionalContext(decision, savedRecord?.id);
-
-  return {
-    action: decision.action,
-    classification: CaptureClassification.PROMOTE,
-    incidentId: savedRecord?.id || null,
-    matchType: decision.matchType,
-    reason: decision.reason,
-    durationMs: Date.now() - start,
-    bestCandidate: decision.bestCandidate,
-    relevantFailedApproaches: decision.relevantFailedApproaches,
-    // Cross-platform compatibility fields for direct agent stdout output:
-    additionalContext: contextText,
-    additional_context: contextText,
-    hookSpecificOutput: {
-      hookEventName: eventName,
-      additionalContext: contextText
+  let data = rawPayload;
+  if (typeof rawPayload === 'string') {
+    try {
+      data = JSON.parse(rawPayload);
+    } catch {
+      data = { rawText: rawPayload };
     }
-  };
+  }
+  data = data && typeof data === 'object' ? data : {};
+
+  const explicitSource = options.source || data.platform || data.source || null;
+  const isPreflight = options.eventType === EventType.PRE_TOOL_USE ||
+    options.event === EventType.PRE_TOOL_USE ||
+    data.hookEventName === 'PreToolUse' ||
+    data.eventType === 'PreToolUse';
+
+  // Branch 1: Preflight recall (e.g. Claude Code PreToolUse advisory)
+  if (isPreflight) {
+    const event = normalizeEvent(data, { ...options, eventType: EventType.PRE_TOOL_USE });
+    const preflight = evaluatePreflightRecall(
+      event.fullCommand || event.command,
+      event.cwd,
+      storage,
+      options
+    );
+
+    if (explicitSource === Platform.CLAUDE || explicitSource === 'claude') {
+      return formatClaudePreflightOutput(preflight);
+    }
+
+    return {
+      action: preflight.action,
+      classification: preflight.action === 'PRE_SURFACE' ? 'PROMOTE' : 'DISCARD',
+      incidentId: preflight.incidentId || null,
+      matchType: preflight.action === 'PRE_SURFACE' ? 'EXACT' : 'NONE',
+      durationMs: Date.now() - start,
+      additionalContext: preflight.contextText || null,
+      additional_context: preflight.contextText || null,
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: preflight.contextText || null
+      }
+    };
+  }
+
+  // Branch 2: Tool execution failure ingestion
+  const event = normalizeEvent(data, options);
+  const ingestion = CaptureService.ingestExecution(event, storage, {
+    captureOrigin: CaptureOrigin.AGENT_EVENT
+  });
+
+  const durationMs = Date.now() - start;
+  const eventName = event.platform === Platform.CODEX ? 'PostToolUse'
+    : (event.platform === Platform.CLAUDE ? 'PostToolUseFailure' : 'AfterTool');
+
+  // If source was explicitly specified, format using the platform's native JSON envelope
+  if (explicitSource === Platform.CLAUDE || explicitSource === 'claude') {
+    return formatClaudeOutput(ingestion.decision, ingestion.incidentId);
+  }
+  if (explicitSource === Platform.CURSOR || explicitSource === 'cursor') {
+    return formatCursorOutput(ingestion.decision, ingestion.incidentId);
+  }
+  if (explicitSource === Platform.GEMINI || explicitSource === 'gemini') {
+    return formatGeminiOutput(ingestion.decision, ingestion.incidentId);
+  }
+  if (explicitSource === Platform.CODEX || explicitSource === 'codex') {
+    return formatCodexOutput(ingestion.decision, ingestion.incidentId);
+  }
+
+  // Generic / Default: return unified response object
+  return formatGenericOutput(ingestion.decision, ingestion.incidentId, {
+    classification: ingestion.classification,
+    observationId: ingestion.observationId,
+    durationMs,
+    eventName
+  });
 }

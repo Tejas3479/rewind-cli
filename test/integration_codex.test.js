@@ -8,10 +8,11 @@ import { processAgentEvent } from '../src/events/gateway.js';
 import { StorageEngine } from '../src/storage/store.js';
 
 describe('Codex Integration & Bridge (src/integrations/codex.js)', () => {
-  test('generateCodexConfig returns valid nested hooks schema with Bash matcher', () => {
+  test('generateCodexConfig returns valid nested hooks schema without duplicate sibling PostToolUse', () => {
     const config = generateCodexConfig();
-    assert.ok(config.PostToolUse || config.hooks?.PostToolUse);
-    const postTool = config.PostToolUse || config.hooks?.PostToolUse;
+    assert.equal(config.PostToolUse, undefined, 'Duplicate top-level sibling PostToolUse must not exist');
+    assert.ok(config.hooks?.PostToolUse, 'Nested hooks.PostToolUse must exist');
+    const postTool = config.hooks.PostToolUse;
     assert.ok(Array.isArray(postTool));
     assert.equal(postTool[0].matcher, 'Bash');
     assert.ok(Array.isArray(postTool[0].hooks));
@@ -24,6 +25,9 @@ describe('Codex Integration & Bridge (src/integrations/codex.js)', () => {
     assert.ok(script.includes('#!/usr/bin/env node'));
     assert.ok(script.includes('event'));
     assert.ok(script.includes('--json'));
+    assert.ok(script.includes('--source'));
+    assert.ok(script.includes('codex'));
+    assert.ok(script.includes('5000'));
     assert.ok(script.includes('hookSpecificOutput'));
     assert.ok(script.includes('PostToolUse'));
   });
@@ -41,8 +45,9 @@ describe('Codex Integration & Bridge (src/integrations/codex.js)', () => {
       assert.ok(fs.existsSync(scriptPath));
 
       const parsedConfig = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
-      const postTool = parsedConfig.PostToolUse || parsedConfig.hooks?.PostToolUse;
-      assert.ok(postTool);
+      assert.equal(parsedConfig.PostToolUse, undefined, 'No duplicate top-level PostToolUse allowed');
+      assert.ok(parsedConfig.hooks?.PostToolUse);
+      const postTool = parsedConfig.hooks.PostToolUse;
       assert.equal(postTool[0].matcher, 'Bash');
       assert.equal(postTool[0].hooks[0].name, 'rewind-codex-hook');
     } finally {

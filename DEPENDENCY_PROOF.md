@@ -86,9 +86,9 @@ node --test
 
 **Expected Output:**
 ```text
-# tests 481
-# suites 109
-# pass 481
+# tests 488
+# suites 110
+# pass 488
 # fail 0
 # cancelled 0
 # skipped 0

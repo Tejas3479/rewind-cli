@@ -148,7 +148,9 @@ export function parseArgs(rawArgs = []) {
     includeUnverified: false,
     overwrite: false,
     force: false,
-    yes: false
+    yes: false,
+    source: null,
+    event: null
   };
 
   const positional = [];
@@ -477,6 +479,34 @@ export function parseArgs(rawArgs = []) {
       i++;
     } else if (arg.startsWith('--file=')) {
       flags.file = arg.slice('--file='.length);
+      i++;
+    } else if (arg === '--source' || arg === '-s') {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--source" requires a platform value (cursor, gemini, codex, claude, generic).');
+      }
+      flags.source = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--source=')) {
+      const val = arg.slice('--source='.length);
+      if (!val) {
+        throw new InvalidArgumentError('Option "--source" requires a platform value (cursor, gemini, codex, claude, generic).');
+      }
+      flags.source = val;
+      i++;
+    } else if (arg === '--event') {
+      i++;
+      if (i >= rawArgs.length || rawArgs[i].startsWith('-')) {
+        throw new InvalidArgumentError('Option "--event" requires an event type value.');
+      }
+      flags.event = rawArgs[i];
+      i++;
+    } else if (arg.startsWith('--event=')) {
+      const val = arg.slice('--event='.length);
+      if (!val) {
+        throw new InvalidArgumentError('Option "--event" requires an event type value.');
+      }
+      flags.event = val;
       i++;
     } else if (arg === '--profile') {
       i++;

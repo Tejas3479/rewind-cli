@@ -10,7 +10,7 @@ import { startMcpServer } from '../mcp/server.js';
  */
 export async function mcpCommand({ context }) {
   const { storage, stdin, stdout, stderr, parsedArgs } = context;
-  const profile = parsedArgs?.flags?.profile || 'full';
+  const profile = parsedArgs?.flags?.profile || 'core';
   
   await startMcpServer(storage, { stdin, stdout, stderr, profile });
   

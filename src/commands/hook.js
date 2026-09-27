@@ -14,7 +14,8 @@ import { captureSafeEnvironment } from '../environment.js';
 import { readGitMetadata } from '../git.js';
 import { parseDiagnostic } from '../diagnostics/index.js';
 import { IncidentStatus } from '../storage/state.js';
-import { classifyCapture, CaptureClassification } from '../storage/capture_policy.js';
+import { CaptureService } from '../storage/service.js';
+import { Platform, EventType, CaptureOrigin } from '../events/model.js';
 
 /**
  * Handler for `rewind hook [shell|record] [options]`.
@@ -92,28 +93,27 @@ export async function hookCommand({ context }) {
       };
 
       if (storage) {
-        const classification = classifyCapture(record, storage, 'shell_hook');
-        if (classification === CaptureClassification.DISCARD) {
-          return 0;
-        }
+        record.platform = Platform.SHELL;
+        record.eventType = EventType.COMMAND;
+        record.captureOrigin = CaptureOrigin.SHELL_HOOK;
 
-        if (classification === CaptureClassification.OBSERVE) {
-          storage.saveObservation(record);
-          return 0;
-        }
+        const ingestion = CaptureService.ingestExecution(record, storage, {
+          captureOrigin: CaptureOrigin.SHELL_HOOK
+        });
 
-        const savedRecord = storage.saveRecord(record);
+        if (ingestion.classification === 'PROMOTE' && ingestion.record) {
+          const savedRecord = ingestion.record;
+          if (stderr && typeof stderr.write === 'function') {
+            const tag = s.badge('rewind', s.yellow);
+            const idText = s.bold(`#${savedRecord.id}`);
 
-        if (stderr && typeof stderr.write === 'function') {
-          const tag = s.badge('rewind', s.yellow);
-          const idText = s.bold(`#${savedRecord.id}`);
-
-          if (savedRecord.status === IncidentStatus.REGRESSED && savedRecord.regressionOf) {
-            stderr.write(`\n${tag} Failure recorded as incident ${idText} ${s.red('(REGRESSION of verified #' + savedRecord.regressionOf + ')')}.\n`);
-            stderr.write(`[rewind] Run: ${s.cyan(`rewind triage ${savedRecord.id}`)} or ${s.cyan(`rewind show ${savedRecord.id}`)}\n\n`);
-          } else {
-            stderr.write(`\n${tag} Failure recorded as incident ${idText}.\n`);
-            stderr.write(`[rewind] Run: ${s.cyan(`rewind triage ${savedRecord.id}`)}\n\n`);
+            if (savedRecord.status === IncidentStatus.REGRESSED && savedRecord.regressionOf) {
+              stderr.write(`\n${tag} Failure recorded as incident ${idText} ${s.red('(REGRESSION of verified #' + savedRecord.regressionOf + ')')}.\n`);
+              stderr.write(`[rewind] Run: ${s.cyan(`rewind triage ${savedRecord.id}`)} or ${s.cyan(`rewind show ${savedRecord.id}`)}\n\n`);
+            } else {
+              stderr.write(`\n${tag} Failure recorded as incident ${idText}.\n`);
+              stderr.write(`[rewind] Run: ${s.cyan(`rewind triage ${savedRecord.id}`)}\n\n`);
+            }
           }
         }
       }

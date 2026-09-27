@@ -4,6 +4,8 @@ import { hasShellOperators } from '../parser.js';
 import { formatJson } from '../formatter.js';
 import { IncidentStatus } from '../storage/state.js';
 import { sanitizeForDisplay } from '../sanitizer.js';
+import { CaptureService } from '../storage/service.js';
+import { Platform, EventType, CaptureOrigin } from '../events/model.js';
 
 /**
  * Handler for `rewind run <command...>`.
@@ -43,16 +45,27 @@ export async function runCommand({ context }) {
   });
 
   let savedRecord = null;
-  // Automatically persist failure records in local ledger
+  // Automatically ingest failure records via unified CaptureService
   if (!result.success && storage) {
     try {
-      savedRecord = storage.saveRecord(result);
+      const canonical = {
+        ...result,
+        platform: Platform.CLI,
+        eventType: EventType.COMMAND,
+        captureOrigin: CaptureOrigin.REWIND_RUN
+      };
 
-      if (!isJsonMode && stderr && typeof stderr.write === 'function') {
+      const ingestion = CaptureService.ingestExecution(canonical, storage, {
+        captureOrigin: CaptureOrigin.REWIND_RUN
+      });
+
+      savedRecord = ingestion.record;
+
+      if (ingestion.classification === 'PROMOTE' && savedRecord && !isJsonMode && stderr && typeof stderr.write === 'function') {
         const s = styler;
         const idText = s.bold(`#${savedRecord.id}`);
 
-        const decision = storage.getSurfacingDecision(savedRecord);
+        const decision = ingestion.decision;
         const isRegression = savedRecord.status === IncidentStatus.REGRESSED && savedRecord.regressionOf;
         const regBadge = isRegression ? ` ${s.red('(REGRESSION)')}` : '';
 

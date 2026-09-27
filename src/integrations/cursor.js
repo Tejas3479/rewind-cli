@@ -34,7 +34,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-process.on('uncaughtException', () => {
+const TIMEOUT_MS = 5000;
+
+process.on('uncaughtException', (err) => {
+  try { process.stderr.write(\`[rewind-bridge:cursor] \${err?.message || err}\\n\`); } catch {}
   try { process.stdout.write('{}\\n'); } catch {}
   process.exit(0);
 });
@@ -50,13 +53,13 @@ process.stdin.on('end', () => {
     const hasLocalBin = fs.existsSync(localBin);
 
     let executable = isWin ? 'rewind.cmd' : 'rewind';
-    let execArgs = ['event', '--json'];
+    let execArgs = ['event', '--json', '--source', 'cursor'];
 
     if (process.env.REWIND_BIN && fs.existsSync(process.env.REWIND_BIN)) {
       executable = process.env.REWIND_BIN;
     } else if (hasLocalBin) {
       executable = process.execPath;
-      execArgs = [localBin, 'event', '--json'];
+      execArgs = [localBin, 'event', '--json', '--source', 'cursor'];
     }
 
     const proc = spawn(executable, execArgs, {
@@ -64,7 +67,16 @@ process.stdin.on('end', () => {
       shell: false
     });
 
-    proc.on('error', () => {
+    const timer = setTimeout(() => {
+      try { proc.kill('SIGKILL'); } catch {}
+      try { process.stderr.write('[rewind-bridge:cursor] Watchdog timed out after 5000ms\\n'); } catch {}
+      try { process.stdout.write('{}\\n'); } catch {}
+      process.exit(0);
+    }, TIMEOUT_MS);
+
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      try { process.stderr.write(\`[rewind-bridge:cursor] \${err?.message || err}\\n\`); } catch {}
       process.stdout.write('{}\\n');
       process.exit(0);
     });
@@ -72,9 +84,23 @@ process.stdin.on('end', () => {
     let output = '';
     proc.stdout.on('data', (d) => { output += d; });
     proc.on('close', () => {
+      clearTimeout(timer);
       try {
-        const parsed = JSON.parse(output);
+        const trimmed = output.trim();
+        if (!trimmed) {
+          process.stdout.write('{}\\n');
+          return;
+        }
+        const parsed = JSON.parse(trimmed);
+        if (parsed && parsed.additional_context !== undefined) {
+          process.stdout.write(JSON.stringify(parsed) + '\\n');
+          return;
+        }
         const text = parsed.additionalContext || parsed.additional_context || '';
+        if (!text) {
+          process.stdout.write('{}\\n');
+          return;
+        }
         process.stdout.write(JSON.stringify({ additional_context: text }) + '\\n');
       } catch {
         process.stdout.write('{}\\n');
