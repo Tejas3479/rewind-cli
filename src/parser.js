@@ -146,7 +146,9 @@ export function parseArgs(rawArgs = []) {
     stderr: null,
     output: null,
     includeUnverified: false,
-    overwrite: false
+    overwrite: false,
+    force: false,
+    yes: false
   };
 
   const positional = [];
@@ -451,6 +453,7 @@ export function parseArgs(rawArgs = []) {
       i++;
     } else if (arg === '--force' || arg === '--yes' || arg === '-y') {
       flags.force = true;
+      flags.yes = true;
       i++;
     } else if (arg === '--quiet' || arg === '-q') {
       flags.quiet = true;

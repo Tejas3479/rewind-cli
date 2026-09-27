@@ -1,4 +1,5 @@
 import path from 'node:path';
+import readline from 'node:readline';
 import { formatJson } from '../formatter.js';
 import { detectAgentEnvironments, installAllDetected } from '../integrations/index.js';
 
@@ -12,20 +13,41 @@ import { detectAgentEnvironments, installAllDetected } from '../integrations/ind
  * @returns {Promise<number>}
  */
 export async function setupCommand({ context }) {
-  const { parsedArgs, config, storage, stdout, styler } = context;
+  const { parsedArgs, config, stdout, stdin, isTTY, styler } = context;
   const s = styler;
 
   const rootDir = parsedArgs.flags.root || config?.rootDir || process.cwd();
   const isDryRun = Boolean(parsedArgs.flags['dry-run'] || parsedArgs.flags.dryRun);
   const isJson = Boolean(parsedArgs.flags.json);
+  const hasYes = Boolean(parsedArgs.flags.yes || parsedArgs.flags.force || parsedArgs.flags.y);
 
   const detection = detectAgentEnvironments(rootDir);
-  const result = installAllDetected(rootDir, { dryRun: isDryRun });
 
-  // Ensure storage is initialized
-  if (storage && !isDryRun) {
-    storage.init();
+  // If in interactive TTY and not confirmed via --yes/--dry-run/--json, prompt for confirmation
+  if (isTTY && !hasYes && !isDryRun && !isJson) {
+    stdout.write('\n' + s.bold('REWIND AGENT SETUP') + '\n');
+    stdout.write(s.dim('────────────────────────────────────────────────────────────────────────\n'));
+    stdout.write(`  ${s.dim('Workspace Root:')}   ${rootDir}\n`);
+    if (detection.detected.length > 0) {
+      stdout.write(`  ${s.dim('Detected Agents:')}  ${s.green(detection.detected.join(', '))}\n`);
+    } else {
+      stdout.write(`  ${s.dim('Detected Agents:')}  ${s.yellow('None specifically detected (defaulting to Cursor)')}\n`);
+    }
+    stdout.write('\n');
+
+    const rl = readline.createInterface({ input: stdin, output: stdout });
+    const answer = await new Promise((resolve) => {
+      rl.question('Configure Rewind integrations for detected coding agents? [Y/n]: ', resolve);
+    });
+    rl.close();
+
+    if (answer && answer.trim().toLowerCase().startsWith('n')) {
+      stdout.write('\n' + s.dim('Setup cancelled. No files were modified.') + '\n\n');
+      return 0;
+    }
   }
+
+  const result = installAllDetected(rootDir, { dryRun: isDryRun });
 
   if (isJson) {
     stdout.write(formatJson({

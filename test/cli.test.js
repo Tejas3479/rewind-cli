@@ -80,13 +80,13 @@ describe('CLI Integration & Behaviors (src/cli.js)', () => {
     const mock1 = createMockIO();
     const code1 = await runCLI(['--version'], mock1.io);
     assert.equal(code1, ExitCodes.SUCCESS);
-    assert.equal(mock1.getStdout().trim(), 'rewind v1.0.0');
+    assert.equal(mock1.getStdout().trim(), 'rewind v1.0.1');
     assert.equal(mock1.getStderr(), '');
 
     const mock2 = createMockIO();
     const code2 = await runCLI(['-v'], mock2.io);
     assert.equal(code2, ExitCodes.SUCCESS);
-    assert.equal(mock2.getStdout().trim(), 'rewind v1.0.0');
+    assert.equal(mock2.getStdout().trim(), 'rewind v1.0.1');
     assert.equal(mock2.getStderr(), '');
   });
 
@@ -96,7 +96,7 @@ describe('CLI Integration & Behaviors (src/cli.js)', () => {
 
     assert.equal(exitCode, ExitCodes.SUCCESS);
     const parsed = JSON.parse(getStdout().trim());
-    assert.deepEqual(parsed, { name: 'rewind', version: '1.0.0' });
+    assert.deepEqual(parsed, { name: 'rewind', version: '1.0.1' });
     assert.equal(getStderr(), '');
   });
 
@@ -243,6 +243,19 @@ describe('CLI Integration & Behaviors (src/cli.js)', () => {
       assert.equal(exitCode, 19);
       assert.ok(mock.getStderr().includes('child_err_19'));
       assert.ok(mock.getStderr().includes('[rewind:warning]'));
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('rewind --version does not create .rewind directory in workspace', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-version-clean-'));
+    try {
+      const mock = createMockIO({ cwd: tmpDir });
+      const exitCode = await runCLI(['--root', tmpDir, '--version'], mock.io);
+
+      assert.equal(exitCode, ExitCodes.SUCCESS);
+      assert.equal(fs.existsSync(path.join(tmpDir, '.rewind')), false);
     } finally {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }

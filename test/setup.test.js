@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { detectAgentEnvironments, installAllDetected } from '../src/integrations/index.js';
 import { installCursorIntegration } from '../src/integrations/cursor.js';
+import { StorageEngine } from '../src/storage/store.js';
 import { runCLI } from '../src/cli.js';
 import { Writable } from 'node:stream';
 
@@ -119,6 +120,68 @@ describe('Agent Integrations & Guided Setup (src/integrations/ & src/commands/se
       assert.equal(fs.existsSync(path.join(tmpDir, 'CLAUDE.md')), false);
       assert.equal(fs.existsSync(path.join(tmpDir, '.cursorrules')), false);
     } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('rewind setup --dry-run does not create .rewind directory in workspace', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-setup-clean-'));
+    try {
+      const io = createMockIO();
+      const exitCode = await runCLI([
+        '--root', tmpDir,
+        'setup',
+        '--dry-run'
+      ], {
+        ...io,
+        isTTY: false
+      });
+
+      assert.equal(exitCode, 0);
+      assert.equal(fs.existsSync(path.join(tmpDir, '.rewind')), false);
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('rewind setup with --yes runs and configures integrations without prompt', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-setup-yes-'));
+    try {
+      const io = createMockIO();
+      const exitCode = await runCLI([
+        '--root', tmpDir,
+        'setup',
+        '--yes'
+      ], {
+        ...io,
+        isTTY: true
+      });
+
+      assert.equal(exitCode, 0);
+      assert.ok(io.getStdout().includes('Setup complete!'));
+      assert.ok(fs.existsSync(path.join(tmpDir, '.cursor', 'hooks.json')));
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('StorageEngine.init() is idempotent when called repeatedly', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-store-idempotent-'));
+    let storage = null;
+    try {
+      storage = new StorageEngine(path.join(tmpDir, '.rewind'));
+      storage.init();
+      assert.equal(storage.initialized, true);
+      assert.ok(storage.db);
+
+      // Call init() a second time on the same instance
+      assert.doesNotThrow(() => {
+        storage.init();
+      });
+      assert.equal(storage.initialized, true);
+      assert.ok(storage.db);
+    } finally {
+      if (storage) storage.close();
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });

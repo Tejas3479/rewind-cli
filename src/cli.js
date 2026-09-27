@@ -68,16 +68,26 @@ export async function runCLI(
     styler = createStyler(colorEnabled);
 
     // 4. Initialize Local Storage Engine
-    try {
-      storage = new StorageEngine(config.ledgerDir);
-      storage.init();
-    } catch (storageErr) {
-      if (parsedArgs.command === 'run') {
-        stderr.write(`\n${styler.dim('[rewind:warning]')} Ledger initialization failed. Recording disabled: ${storageErr.message}\n`);
-      } else if (['help', 'version', 'completions', 'hook', 'mcp'].includes(parsedArgs.command)) {
-        // Safe commands that do not require a working ledger
-      } else {
-        throw storageErr; // Other commands require a working ledger
+    // Skip storage initialization for safe read-only/informational commands to avoid creating .rewind directories.
+    const isNoStorageCommand =
+      Boolean(parsedArgs.flags.version || parsedArgs.flags.v) ||
+      Boolean(parsedArgs.flags.help || parsedArgs.flags.h) ||
+      ['version', 'help', 'completions'].includes(parsedArgs.command) ||
+      (parsedArgs.command === 'setup' && Boolean(parsedArgs.flags['dry-run'] || parsedArgs.flags.dryRun));
+
+    storage = new StorageEngine(config.ledgerDir);
+
+    if (!isNoStorageCommand) {
+      try {
+        storage.init();
+      } catch (storageErr) {
+        if (parsedArgs.command === 'run') {
+          stderr.write(`\n${styler.dim('[rewind:warning]')} Ledger initialization failed. Recording disabled: ${storageErr.message}\n`);
+        } else if (['hook', 'mcp', 'setup'].includes(parsedArgs.command)) {
+          // Safe commands that do not strictly require a working ledger upfront
+        } else {
+          throw storageErr; // Other commands require a working ledger
+        }
       }
     }
 
