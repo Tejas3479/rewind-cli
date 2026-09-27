@@ -322,17 +322,34 @@ export function isValidRecord(obj) {
 
   const record = /** @type {Record<string, unknown>} */ (obj);
 
-  return (
-    typeof record.id === 'string' &&
-    record.id.trim() !== '' &&
-    typeof record.fingerprint === 'string' &&
-    typeof record.command === 'string' &&
-    Array.isArray(record.args) &&
-    typeof record.startTime === 'string' &&
-    (typeof record.exitCode === 'number' || record.exitCode === null) &&
-    typeof record.status === 'string' &&
-    typeof record.stdout === 'string' &&
-    typeof record.stderr === 'string'
-  );
+  if (
+    typeof record.id !== 'string' ||
+    record.id.trim() === '' ||
+    typeof record.fingerprint !== 'string' ||
+    typeof record.command !== 'string' ||
+    !Array.isArray(record.args) ||
+    typeof record.startTime !== 'string' ||
+    (typeof record.exitCode !== 'number' && record.exitCode !== null) ||
+    typeof record.status !== 'string' ||
+    typeof record.stdout !== 'string' ||
+    typeof record.stderr !== 'string'
+  ) {
+    return false;
+  }
+
+  // Strict version-to-length fingerprint validation:
+  // v1 must be 16 hex characters; v2 must be 64 hex characters.
+  const fp = record.fingerprint.trim();
+  const version = record.fingerprintVersion;
+
+  if (version === 1) {
+    return /^[0-9a-f]{16}$/i.test(fp);
+  }
+  if (version === 2) {
+    return /^[0-9a-f]{64}$/i.test(fp);
+  }
+
+  // If fingerprintVersion is omitted or not 1/2, must match either valid v1 or v2 format
+  return /^[0-9a-f]{16}$/i.test(fp) || /^[0-9a-f]{64}$/i.test(fp);
 }
 

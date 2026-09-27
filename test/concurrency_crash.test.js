@@ -76,4 +76,46 @@ describe('Concurrency, Crash & Stream Bounds (src/storage/store.js & record.js)'
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
+
+  test('allocates unique non-colliding IDs when multiple storage instances write to same ledger', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-concurrent-instances-'));
+    try {
+      const storageA = new StorageEngine(tmpDir).init();
+      const storageB = new StorageEngine(tmpDir).init();
+
+      // Alternating writes between two independent storage engine handles
+      const recA1 = storageA.saveRecord({
+        command: 'npm',
+        args: ['test'],
+        exitCode: 1,
+        stderr: 'Error from A1',
+        cwd: tmpDir
+      });
+
+      const recB1 = storageB.saveRecord({
+        command: 'npm',
+        args: ['test'],
+        exitCode: 1,
+        stderr: 'Error from B1',
+        cwd: tmpDir
+      });
+
+      const recA2 = storageA.saveRecord({
+        command: 'npm',
+        args: ['test'],
+        exitCode: 1,
+        stderr: 'Error from A2',
+        cwd: tmpDir
+      });
+
+      assert.equal(recA1.id, '1');
+      assert.equal(recB1.id, '2');
+      assert.equal(recA2.id, '3');
+
+      storageA.close();
+      storageB.close();
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
 });

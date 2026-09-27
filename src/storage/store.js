@@ -22,6 +22,8 @@ import { verifyLedgerIntegrity } from './integrity.js';
 import { analyzePatternsFromJournal } from './patterns.js';
 import { buildAgentContext } from './context.js';
 import { runDoctorDiagnostics, executeDoctorRepair } from './doctor.js';
+import { captureSafeEnvironment } from '../environment.js';
+import { readGitMetadata } from '../git.js';
 import { CliError } from '../errors.js';
 
 /**
@@ -67,6 +69,10 @@ export class StorageEngine {
    * verifies trusted checkpoint against journal tail, and loads projections.
    */
   init() {
+    if (this.initialized && this.db) {
+      return this;
+    }
+
     // 1. Ensure directory hierarchy exists with secure permissions (0o700)
     fs.mkdirSync(this.ledgerDir, { recursive: true, mode: 0o700 });
     fs.mkdirSync(this.evidenceDir, { recursive: true, mode: 0o700 });
@@ -412,11 +418,19 @@ export class StorageEngine {
       const needsSync = forceSyncDisk || !checkpoint || checkpoint.headSequence < lastEvent.sequence;
 
       if (!checkpoint || checkpoint.headSequence < lastEvent.sequence) {
+        let maxIncId = 0;
+        for (const ev of events) {
+          const numId = Number.parseInt(ev.incidentId, 10);
+          if (!Number.isNaN(numId) && numId > maxIncId) {
+            maxIncId = numId;
+          }
+        }
         writeCheckpoint(this.ledgerDir, {
           headSequence: lastEvent.sequence,
           headEventId: lastEvent.eventId,
           headChainHash: lastEvent.chainHash,
-          eventCount: events.length
+          eventCount: events.length,
+          highestIncidentId: maxIncId
         });
       }
 
@@ -656,6 +670,10 @@ export class StorageEngine {
    * @returns {string}
    */
   getNextId() {
+    const checkpoint = readCheckpoint(this.ledgerDir);
+    if (checkpoint && typeof checkpoint.highestIncidentId === 'number') {
+      return String(Math.max(this.highestId, checkpoint.highestIncidentId) + 1);
+    }
     return String(this.highestId + 1);
   }
 
@@ -752,8 +770,6 @@ export class StorageEngine {
       this.init();
     }
 
-    const id = this.getNextId();
-
     // Check for regression against previously verified records
     let initialState = options.initialState;
     let regressionOf = options.regressionOf || null;
@@ -798,7 +814,7 @@ export class StorageEngine {
     // Append to authoritative journal (with exclusive lock, fsync, and checkpoint update)
     const event = appendJournalEvent(this.ledgerDir, {
       type: eventType,
-      incidentId: id,
+      incidentId: 'AUTO',
       payload: {
         command: captureResult.command || '',
         args: Array.isArray(captureResult.args) ? captureResult.args : [],
@@ -821,6 +837,9 @@ export class StorageEngine {
         regressionOf: regressionOf || null
       }
     });
+
+    const id = event.incidentId;
+    this.highestId = Math.max(this.highestId, Number.parseInt(id, 10) || 0);
 
     // Incrementally apply the event in O(1) and write single projected record
     const record = this.applyJournalEvent(event, { syncDisk: true });
@@ -1022,8 +1041,6 @@ export class StorageEngine {
       return this.getRecord(obs.promotedToIncident);
     }
 
-    const id = this.getNextId();
-
     const rawStderr = obs.stderr || '';
     const rawStdout = obs.stdout || '';
     const fullOutput = rawStdout + (rawStdout && rawStderr ? '\n' : '') + rawStderr;
@@ -1052,9 +1069,12 @@ export class StorageEngine {
 
     const event = appendJournalEvent(this.ledgerDir, {
       type: 'observation.promoted',
-      incidentId: id,
+      incidentId: 'AUTO',
       payload
     });
+
+    const id = event.incidentId;
+    this.highestId = Math.max(this.highestId, Number.parseInt(id, 10) || 0);
 
     const incident = this.applyJournalEvent(event, { syncDisk: true });
 
@@ -1200,6 +1220,10 @@ export class StorageEngine {
     const outputContent = runData.output || '';
     const outputHash = crypto.createHash('sha256').update(outputContent, 'utf8').digest('hex');
 
+    const envSnapshot = runData.environment || (existing.environment && Object.keys(existing.environment).length > 0 ? existing.environment : captureSafeEnvironment());
+    const gitSnapshot = runData.git || (existing.git && existing.git.isGit !== undefined ? existing.git : readGitMetadata(path.dirname(this.ledgerDir)));
+    const envFingerprint = runData.environmentFingerprint || envSnapshot?.fingerprint || existing.environment?.fingerprint || '';
+
     // Append verification.run event to authoritative journal
     const event = appendJournalEvent(this.ledgerDir, {
       type: 'verification.run',
@@ -1212,7 +1236,9 @@ export class StorageEngine {
         durationMs: runData.durationMs || 0,
         output: outputContent,
         outputHash,
-        environmentFingerprint: runData.environmentFingerprint || existing.environment?.fingerprint || '',
+        environment: envSnapshot,
+        git: gitSnapshot,
+        environmentFingerprint: envFingerprint,
         result: isPassed ? 'PASSED' : 'FAILED',
         provenance: ProvenanceType.DIRECTLY_VERIFIED,
         evidenceQuality: EvidenceQuality.DIRECT

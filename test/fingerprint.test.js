@@ -8,6 +8,7 @@ import {
   inferFingerprintVersion,
   FINGERPRINT_VERSION
 } from '../src/storage/fingerprint.js';
+import { isValidRecord } from '../src/storage/record.js';
 
 describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.js)', () => {
   test('identical errors produce identical fingerprints', () => {
@@ -334,5 +335,39 @@ describe('Deterministic Normalization & Fingerprinting (src/storage/fingerprint.
     assert.equal(inferFingerprintVersion(null), 2);
     assert.equal(inferFingerprintVersion('custom_fp', 1), 1);
     assert.equal(inferFingerprintVersion('custom_fp'), 2);
+  });
+
+  test('isValidRecord strictly validates fingerprint hex length and version match', () => {
+    const baseValidRecord = {
+      id: '1',
+      command: 'npm',
+      args: ['test'],
+      startTime: '2026-09-27T10:00:00Z',
+      exitCode: 1,
+      status: 'OPEN',
+      stdout: '',
+      stderr: 'Test failed'
+    };
+
+    const fp16 = '0123456789abcdef';
+    const fp64 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+    // Valid v1
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp16, fingerprintVersion: 1 }), true);
+    // Valid v2
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp64, fingerprintVersion: 2 }), true);
+    // Valid without explicit version
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp16 }), true);
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp64 }), true);
+
+    // Mismatched version and length
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp64, fingerprintVersion: 1 }), false);
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp16, fingerprintVersion: 2 }), false);
+
+    // Invalid lengths or characters
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: '0123456789abcde' }), false); // 15 chars
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: '0123456789abcdefg' }), false); // non-hex 'g'
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: fp64.slice(0, 63) }), false); // 63 chars
+    assert.equal(isValidRecord({ ...baseValidRecord, fingerprint: 'not-a-fingerprint' }), false);
   });
 });

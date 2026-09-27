@@ -370,6 +370,7 @@ export function writeCheckpoint(ledgerDir, checkpointData) {
     headEventId: checkpointData.headEventId,
     headChainHash: checkpointData.headChainHash,
     eventCount: checkpointData.eventCount,
+    highestIncidentId: typeof checkpointData.highestIncidentId === 'number' ? checkpointData.highestIncidentId : null,
     updatedAt: new Date().toISOString()
   };
 
@@ -394,7 +395,7 @@ export function writeCheckpoint(ledgerDir, checkpointData) {
  * @param {string} ledgerDir - Absolute path to .rewind directory
  * @param {object} eventInput
  * @param {string} eventInput.type - Event type
- * @param {string} eventInput.incidentId - Incident ID
+ * @param {string} eventInput.incidentId - Incident ID (or 'AUTO' to atomically allocate)
  * @param {object} eventInput.payload - Event payload
  * @param {object} [options]
  * @returns {object} - The sealed event written to the journal
@@ -415,19 +416,47 @@ export function appendJournalEvent(ledgerDir, eventInput, options = {}) {
       prevHash = lastEvent.chainHash;
     }
 
-    // 2. Create the cryptographically sealed event
+    // 2. Read or derive trusted checkpoint to determine sequence and atomic incident ID allocation
+    const checkpoint = readCheckpoint(ledgerDir);
+    let highestIncidentId = checkpoint?.highestIncidentId;
+
+    if (typeof highestIncidentId !== 'number') {
+      highestIncidentId = 0;
+      if (fs.existsSync(journalPath) && fs.statSync(journalPath).size > 0) {
+        const { events } = readJournalEvents(journalPath);
+        for (const ev of events) {
+          const numId = Number.parseInt(ev.incidentId, 10);
+          if (!Number.isNaN(numId) && numId > highestIncidentId) {
+            highestIncidentId = numId;
+          }
+        }
+      }
+    }
+
+    let allocatedIncidentId = eventInput.incidentId;
+    if (!allocatedIncidentId || allocatedIncidentId === 'AUTO') {
+      highestIncidentId += 1;
+      allocatedIncidentId = String(highestIncidentId);
+    } else {
+      const numId = Number.parseInt(allocatedIncidentId, 10);
+      if (!Number.isNaN(numId) && numId > highestIncidentId) {
+        highestIncidentId = numId;
+      }
+    }
+
+    // 3. Create the cryptographically sealed event
     const event = createEvent({
       type: eventInput.type,
-      incidentId: eventInput.incidentId,
+      incidentId: allocatedIncidentId,
       payload: eventInput.payload,
       prevHash,
       sequence
     });
 
-    // 3. Serialize event to single-line canonical JSON
+    // 4. Serialize event to single-line canonical JSON
     const canonicalLine = canonicalStringify(event) + '\n';
 
-    // 4. Append to journal.jsonl with fsync durability
+    // 5. Append to journal.jsonl with fsync durability
     const journalFd = fs.openSync(journalPath, 'a', 0o600);
     try {
       fs.writeSync(journalFd, canonicalLine);
@@ -436,14 +465,15 @@ export function appendJournalEvent(ledgerDir, eventInput, options = {}) {
       fs.closeSync(journalFd);
     }
 
-    // 5. Update local trusted checkpoint
+    // 6. Update local trusted checkpoint
     const eventCount = sequence;
 
     writeCheckpoint(ledgerDir, {
       headSequence: event.sequence,
       headEventId: event.eventId,
       headChainHash: event.chainHash,
-      eventCount
+      eventCount,
+      highestIncidentId
     });
 
     return event;
