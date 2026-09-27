@@ -1,40 +1,58 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { installCursorIntegration } from './cursor.js';
 import { installGeminiIntegration } from './gemini.js';
 import { installCodexIntegration } from './codex.js';
 
 /**
- * Detects agent environments present in the given workspace root.
+ * Detects agent environments present in the given workspace root or user system.
  *
  * @param {string} [rootDir=process.cwd()]
- * @returns {{ cursor: boolean, gemini: boolean, codex: boolean, detected: string[] }}
+ * @param {object} [options]
+ * @param {boolean} [options.checkUser] - Whether to check user profile directories (~/.cursor, ~/.gemini, etc.)
+ * @param {boolean} [options.checkEnv] - Whether to check environment variables
+ * @returns {{ cursor: boolean, gemini: boolean, codex: boolean, detected: string[], details: object }}
  */
-export function detectAgentEnvironments(rootDir = process.cwd()) {
+export function detectAgentEnvironments(rootDir = process.cwd(), options = {}) {
+  const isCwd = path.resolve(rootDir) === path.resolve(process.cwd());
+  const checkUser = typeof options.checkUser === 'boolean' ? options.checkUser : isCwd;
+  const checkEnv = typeof options.checkEnv === 'boolean' ? options.checkEnv : isCwd;
   const detected = [];
+  const homeDir = os.homedir?.() || process.env.HOME || process.env.USERPROFILE || '';
 
   // 1. Detect Cursor
   const hasCursorDir = fs.existsSync(path.join(rootDir, '.cursor'));
   const hasCursorRules = fs.existsSync(path.join(rootDir, '.cursorrules'));
-  const hasCursorEnv = Boolean(process.env.CURSOR_TRACE_DIR || process.env.CURSOR_PROJECT_DIR);
-  const isCursor = hasCursorDir || hasCursorRules || hasCursorEnv;
+  const hasCursorEnv = checkEnv && Boolean(process.env.CURSOR_TRACE_DIR || process.env.CURSOR_PROJECT_DIR);
+  const hasCursorUser = checkUser && Boolean(homeDir && fs.existsSync(path.join(homeDir, '.cursor')));
+  const isCursor = hasCursorDir || hasCursorRules || hasCursorEnv || hasCursorUser;
   if (isCursor) detected.push('Cursor');
 
   // 2. Detect Gemini
   const hasGeminiDir = fs.existsSync(path.join(rootDir, '.gemini'));
-  const isGemini = hasGeminiDir;
+  const hasGeminiEnv = checkEnv && Boolean(process.env.GEMINI_CLI || process.env.GEMINI_PROJECT_DIR);
+  const hasGeminiUser = checkUser && Boolean(homeDir && fs.existsSync(path.join(homeDir, '.gemini')));
+  const isGemini = hasGeminiDir || hasGeminiEnv || hasGeminiUser;
   if (isGemini) detected.push('Gemini');
 
   // 3. Detect Codex
   const hasCodexDir = fs.existsSync(path.join(rootDir, '.codex'));
-  const isCodex = hasCodexDir;
+  const hasCodexEnv = checkEnv && Boolean(process.env.CODEX_PROJECT_DIR);
+  const hasCodexUser = checkUser && Boolean(homeDir && fs.existsSync(path.join(homeDir, '.codex')));
+  const isCodex = hasCodexDir || hasCodexEnv || hasCodexUser;
   if (isCodex) detected.push('Codex');
 
   return {
     cursor: isCursor,
     gemini: isGemini,
     codex: isCodex,
-    detected
+    detected,
+    details: {
+      cursor: { project: hasCursorDir || hasCursorRules, user: hasCursorUser, env: hasCursorEnv },
+      gemini: { project: hasGeminiDir, user: hasGeminiUser, env: hasGeminiEnv },
+      codex: { project: hasCodexDir, user: hasCodexUser, env: hasCodexEnv }
+    }
   };
 }
 
@@ -46,7 +64,7 @@ export function detectAgentEnvironments(rootDir = process.cwd()) {
  * @returns {{ installed: string[], filesCreated: string[] }}
  */
 export function installAllDetected(rootDir, options = {}) {
-  const envs = detectAgentEnvironments(rootDir);
+  const envs = detectAgentEnvironments(rootDir, options);
   const installed = [];
   const filesCreated = [];
 
