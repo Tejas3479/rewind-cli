@@ -68,6 +68,7 @@ export function sanitizeBundleIncident(record, rootDir = '') {
       runtime: record.diagnostic.runtime || null,
       errorType: record.diagnostic.errorType || null,
       errorCode: record.diagnostic.errorCode || null,
+      operation: record.diagnostic.operation || null,
       message: stripMachinePaths(redactSecrets(record.diagnostic.message || ''), rootDir),
       sourceFile: record.diagnostic.sourceFile ? stripMachinePaths(record.diagnostic.sourceFile, rootDir) : null,
       line: record.diagnostic.line || null,

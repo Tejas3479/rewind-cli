@@ -23,6 +23,7 @@ export const ConfidenceLevel = Object.freeze({
  * @property {string|null} runtime - Runtime engine identifier ('v8' | 'cpython' | 'rustc' | 'go' | null)
  * @property {string|null} errorType - Specific error or exception class (e.g. 'TypeError', 'ValueError', 'panic')
  * @property {string|null} errorCode - System or compiler error code (e.g. 'ECONNREFUSED', 'E0308', 'ERR_INVALID_ARG_TYPE')
+ * @property {string|null} [operation] - Specific operation/action name (e.g. AWS API operation 'GetObject')
  * @property {string|null} message - Primary diagnostic or exception message
  * @property {string|null} sourceFile - Primary offending source file path
  * @property {number|null} line - 1-indexed source line number
@@ -59,6 +60,7 @@ export function createStructuredDiagnostic(fields = {}) {
     runtime: fields.runtime || null,
     errorType: fields.errorType || null,
     errorCode: fields.errorCode || null,
+    operation: typeof fields.operation === 'string' ? fields.operation : null,
     message: fields.message !== undefined ? fields.message : null,
     sourceFile: fields.sourceFile || null,
     line: typeof fields.line === 'number' && fields.line > 0 ? fields.line : null,
