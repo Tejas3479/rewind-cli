@@ -87,9 +87,11 @@ export function classifyCapture(captureResult, storage = null, source = 'shell_h
     return CaptureClassification.OBSERVE;
   }
 
-  // 7. Test runner failures (e.g. pytest, jest, vitest, npm test, cargo test) -> PROMOTE
-  const fullCmd = (captureResult.fullCommand || `${captureResult.command || ''} ${(captureResult.args || []).join(' ')}`).toLowerCase();
-  const isTestCommand = /^(pytest|jest|vitest|mocha|cargo\s+test|npm\s+test|go\s+test)\b/.test(fullCmd) ||
+  // 7. Test runner failures (e.g. pytest, jest, vitest, npm test, pnpm test, cargo test) -> PROMOTE
+  const fullCmd = (captureResult.fullCommand || `${captureResult.command || ''} ${(captureResult.args || []).join(' ')}`).toLowerCase().trim();
+  const isTestCommand =
+    /^(npm|pnpm|yarn|bun)\s+(run\s+)?test\b/.test(fullCmd) ||
+    /^(npx\s+)?(pytest|jest|vitest|mocha|cargo\s+test|go\s+test)\b/.test(fullCmd) ||
     /\b(pytest|jest|vitest|mocha)\b/.test((captureResult.command || '').toLowerCase());
   if (isTestCommand) {
     return CaptureClassification.PROMOTE;

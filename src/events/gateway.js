@@ -1,17 +1,21 @@
-import { tokenizeCommandLine } from '../parser.js';
 import { redactSecrets, sanitizeForDisplay } from '../sanitizer.js';
 import { parseDiagnostic } from '../diagnostics/index.js';
 import { captureSafeEnvironment } from '../environment.js';
 import { readGitMetadata } from '../git.js';
+import { tokenizeCommandLine } from '../parser.js';
 import { classifyCapture, CaptureClassification } from '../storage/capture_policy.js';
 
 /**
- * Normalizes vendor-specific agent payloads (Cursor, Gemini, Codex, Generic)
- * into a uniform RewindEvent structure.
+ * Normalizes vendor-specific agent failure hook payloads into a standard Rewind event.
+ * Handles payloads from:
+ * - Cursor postToolUseFailure
+ * - Gemini CLI AfterTool
+ * - Codex PostToolUse
+ * - Generic Rewind JSON
  *
  * @param {object|string} rawPayload
- * @param {object} [contextOptions]
- * @returns {object} Normalized RewindEvent
+ * @param {object} [contextOptions={}]
+ * @returns {object} Normalized failure event
  */
 export function normalizeEvent(rawPayload, contextOptions = {}) {
   let data = rawPayload;
@@ -25,19 +29,19 @@ export function normalizeEvent(rawPayload, contextOptions = {}) {
 
   data = data && typeof data === 'object' ? data : {};
 
-  let source = 'generic';
+  let source = contextOptions.source || data.source || 'generic';
   let sessionId = null;
   let toolName = null;
   let rawCmd = '';
   let cwd = contextOptions.cwd || data.cwd || process.cwd();
-  let exitCode = 1;
+  let exitCode = null;
   let signal = null;
   let durationMs = 0;
   let stderr = '';
   let stdout = '';
 
   // 1. Detect Cursor hook payload (has conversation_id or tool_input or tool_output)
-  if (data.conversation_id || data.tool_input || data.tool_output) {
+  if (source === 'cursor' || data.conversation_id || data.tool_input || data.tool_output) {
     source = 'cursor';
     sessionId = data.conversation_id || null;
     toolName = data.tool_name || null;
@@ -45,33 +49,47 @@ export function normalizeEvent(rawPayload, contextOptions = {}) {
     rawCmd = input.command || input.cmd || data.command || '';
     cwd = input.cwd || cwd;
     const output = data.tool_output || {};
-    exitCode = typeof output.exit_code === 'number' ? output.exit_code : (typeof data.exitCode === 'number' ? data.exitCode : 1);
+    if (typeof output.exit_code === 'number') {
+      exitCode = output.exit_code;
+    } else if (typeof data.exitCode === 'number') {
+      exitCode = data.exitCode;
+    }
     stderr = output.stderr || data.error || '';
     stdout = output.stdout || '';
     durationMs = typeof data.duration_ms === 'number' ? data.duration_ms : 0;
   }
   // 2. Detect Gemini CLI hook payload (has session_id or parameters or hookSpecificOutput)
-  else if (data.hookSpecificOutput || data.session_id || data.parameters || (data.result && data.tool_name)) {
+  else if (source === 'gemini' || data.hookSpecificOutput || data.session_id || data.parameters || data.tool_input || (data.result && data.tool_name) || (data.tool_response && data.tool_name)) {
     source = 'gemini';
     sessionId = data.session_id || null;
     toolName = data.tool_name || null;
-    const params = data.parameters || {};
+    const params = data.parameters || data.tool_input || {};
     rawCmd = params.command || params.cmd || data.command || '';
     cwd = params.cwd || cwd;
-    const res = data.result || {};
-    exitCode = typeof res.exit_code === 'number' ? res.exit_code : (typeof data.exitCode === 'number' ? data.exitCode : 1);
+    const res = data.result || data.tool_response || {};
+    if (typeof res.exit_code === 'number') {
+      exitCode = res.exit_code;
+    } else if (typeof data.exitCode === 'number') {
+      exitCode = data.exitCode;
+    }
     stderr = res.error || res.stderr || data.error || '';
     stdout = res.stdout || '';
   }
   // 3. Detect Codex hook payload
-  else if (data.tool || (data.input && data.output)) {
+  else if (source === 'codex' || data.tool || (data.input && data.output)) {
     source = 'codex';
     toolName = data.tool || null;
     const input = data.input || {};
     rawCmd = input.command || input.cmd || data.command || '';
     cwd = input.cwd || cwd;
     const output = data.output || {};
-    exitCode = typeof output.exitCode === 'number' ? output.exitCode : (typeof output.exit_code === 'number' ? output.exit_code : 1);
+    if (typeof output.exitCode === 'number') {
+      exitCode = output.exitCode;
+    } else if (typeof output.exit_code === 'number') {
+      exitCode = output.exit_code;
+    } else if (typeof data.exitCode === 'number') {
+      exitCode = data.exitCode;
+    }
     stderr = output.stderr || data.error || '';
     stdout = output.stdout || '';
   }
@@ -82,12 +100,39 @@ export function normalizeEvent(rawPayload, contextOptions = {}) {
     toolName = data.toolName || null;
     rawCmd = data.command || data.fullCommand || data.cmd || '';
     cwd = data.cwd || cwd;
-    exitCode = typeof data.exitCode === 'number' ? data.exitCode : 1;
+    if (typeof data.exitCode === 'number') {
+      exitCode = data.exitCode;
+    }
     signal = data.signal || null;
     durationMs = typeof data.durationMs === 'number' ? data.durationMs : 0;
     stderr = data.stderr || data.error || '';
     stdout = data.stdout || '';
   }
+
+  // Determine explicit outcome (do NOT assume failure if exitCode is missing without errors)
+  let outcome = 'UNKNOWN';
+  if (signal) {
+    outcome = 'INTERRUPTED';
+    if (exitCode === null) exitCode = 130;
+  } else if (exitCode === 0) {
+    outcome = 'SUCCESS';
+  } else if (typeof exitCode === 'number' && exitCode > 0) {
+    outcome = 'FAILURE';
+  } else if (data.error || (typeof stderr === 'string' && stderr.trim().length > 0)) {
+    outcome = 'FAILURE';
+    exitCode = 1;
+  } else if (data.success === false) {
+    outcome = 'FAILURE';
+    exitCode = 1;
+  } else if (data.success === true) {
+    outcome = 'SUCCESS';
+    exitCode = 0;
+  } else {
+    outcome = 'UNKNOWN';
+    exitCode = null;
+  }
+
+  const isSuccess = outcome === 'SUCCESS' || exitCode === 0;
 
   // Tokenize command line
   const trimmedCmd = String(rawCmd).trim();
@@ -120,9 +165,10 @@ export function normalizeEvent(rawPayload, contextOptions = {}) {
     endTime: nowIso,
     durationMs,
     exitCode,
+    outcome,
     signal,
     timedOut: false,
-    success: exitCode === 0,
+    success: isSuccess,
     stdoutRaw: '',
     stderrRaw: stderr,
     stdout: stdoutSanitized,
@@ -160,20 +206,27 @@ export function formatAgentAdditionalContext(decision, incidentId = '') {
     if (decision.relevantFailedApproaches && decision.relevantFailedApproaches.length > 0) {
       parts.push(`\nKnown Failed Approaches (DO NOT RETRY):`);
       for (const fa of decision.relevantFailedApproaches) {
-        parts.push(`- Avoid: "${fa.change}" (Failed)`);
+        parts.push(`- Avoid: "${fa.change || fa.cause || 'Unknown'}" (Failed)`);
       }
     }
-    parts.push(`\nImportant: Verification commands require host/user execution approval.`);
+
+    if (fix.verifyCmd) {
+      parts.push(`\nImportant: Verification commands require host/user execution approval.`);
+    }
   } else if (decision.action === 'CAUTION') {
-    parts.push(`[Rewind Advisory]`);
-    parts.push(`Historical failure match detected with caution: ${decision.reason}.`);
-    if (decision.bestCandidate?.change) {
-      parts.push(`Past candidate fix: ${decision.bestCandidate.change} (Caveat: ${decision.reason})`);
+    parts.push(`[Rewind Caution]`);
+    parts.push(`Prior failure detected: ${decision.reason}`);
+    if (decision.bestCandidate) {
+      const fix = decision.bestCandidate;
+      parts.push(`Historical Fix: ${fix.change || fix.cause}`);
+      if (fix.stalenessReasons && fix.stalenessReasons.length > 0) {
+        parts.push(`Caveat: ${fix.stalenessReasons.join('; ')}`);
+      }
     }
     if (decision.relevantFailedApproaches && decision.relevantFailedApproaches.length > 0) {
-      parts.push(`Known Failed Approaches (DO NOT RETRY):`);
+      parts.push(`Known failed attempts:`);
       for (const fa of decision.relevantFailedApproaches) {
-        parts.push(`- Avoid: "${fa.change}" (Failed)`);
+        parts.push(`• Failed: ${fa.change || fa.cause}`);
       }
     }
     if (incidentId) {
@@ -201,8 +254,10 @@ export function processAgentEvent(rawPayload, storage, options = {}) {
   const start = Date.now();
   const event = normalizeEvent(rawPayload, options);
 
-  // If command is empty or success -> DISCARD
-  if (!event.command || event.success) {
+  const eventName = event.source === 'codex' ? 'PostToolUse' : 'AfterTool';
+
+  // If command is empty or success or benign UNKNOWN without error -> DISCARD
+  if (!event.command || event.success || event.outcome === 'SUCCESS' || event.outcome === 'UNKNOWN') {
     return {
       action: 'SILENCE',
       classification: CaptureClassification.DISCARD,
@@ -210,7 +265,10 @@ export function processAgentEvent(rawPayload, storage, options = {}) {
       durationMs: Date.now() - start,
       additionalContext: null,
       additional_context: null,
-      hookSpecificOutput: { additionalContext: null }
+      hookSpecificOutput: {
+        hookEventName: eventName,
+        additionalContext: null
+      }
     };
   }
 
@@ -224,7 +282,10 @@ export function processAgentEvent(rawPayload, storage, options = {}) {
       durationMs: Date.now() - start,
       additionalContext: null,
       additional_context: null,
-      hookSpecificOutput: { additionalContext: null }
+      hookSpecificOutput: {
+        hookEventName: eventName,
+        additionalContext: null
+      }
     };
   }
 
@@ -238,7 +299,10 @@ export function processAgentEvent(rawPayload, storage, options = {}) {
       durationMs: Date.now() - start,
       additionalContext: null,
       additional_context: null,
-      hookSpecificOutput: { additionalContext: null }
+      hookSpecificOutput: {
+        hookEventName: eventName,
+        additionalContext: null
+      }
     };
   }
 
@@ -266,6 +330,7 @@ export function processAgentEvent(rawPayload, storage, options = {}) {
     additionalContext: contextText,
     additional_context: contextText,
     hookSpecificOutput: {
+      hookEventName: eventName,
       additionalContext: contextText
     }
   };
