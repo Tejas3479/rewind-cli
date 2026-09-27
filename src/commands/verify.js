@@ -6,6 +6,8 @@ import { formatJson, formatBox } from '../formatter.js';
 import { sanitizeForDisplay } from '../sanitizer.js';
 import { normalizeId } from '../storage/store.js';
 import { formatContradictionSection } from '../storage/contradiction.js';
+import { captureSafeEnvironment } from '../environment.js';
+import { readGitMetadata } from '../git.js';
 
 /**
  * Handler for `rewind verify <id>`.
@@ -95,13 +97,18 @@ export async function verifyCommand({ context }) {
   });
 
   const runOutput = (verifyResult.stdout || verifyResult.stderr || '').trim();
+  const safeEnv = captureSafeEnvironment(env);
+  const gitMeta = readGitMetadata(config.rootDir);
 
   // Atomically record immutable verification run
   const updated = storage.recordVerificationRun(id, targetAttempt.id, {
     command: verifyCmd,
     exitCode: typeof verifyResult.exitCode === 'number' ? verifyResult.exitCode : (verifyResult.success ? 0 : 1),
     durationMs: verifyResult.durationMs,
-    output: runOutput
+    output: runOutput,
+    environment: safeEnv,
+    git: gitMeta,
+    environmentFingerprint: safeEnv.fingerprint
   });
 
   // Run contradiction check across ledger

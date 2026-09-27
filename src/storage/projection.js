@@ -209,6 +209,8 @@ export function applyEventToRecordMap(incidents, event) {
           output: payload.output || '',
           outputHash: payload.outputHash || crypto.createHash('sha256').update(payload.output || '', 'utf8').digest('hex'),
           environmentFingerprint: payload.environmentFingerprint || existing.environment?.fingerprint || '',
+          environment: payload.environment || null,
+          git: payload.git || null,
           result: isPassed ? 'PASSED' : 'FAILED',
           provenance: payload.provenance || ProvenanceType.DIRECTLY_VERIFIED
         };
@@ -221,6 +223,7 @@ export function applyEventToRecordMap(incidents, event) {
         targetAttempt.evidenceQuality = isPassed ? EvidenceQuality.DIRECT : EvidenceQuality.DIRECT;
         if (isPassed) {
           targetAttempt.isExternal = false;
+          targetAttempt.locallyVerified = true;
         }
         targetAttempt.verificationRuns = [...currentRuns, newRun];
         currentAttempts[attemptIndex] = targetAttempt;

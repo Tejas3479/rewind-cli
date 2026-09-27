@@ -5,6 +5,8 @@ import { tokenizeCommandLine, hasShellOperators } from '../parser.js';
 import { normalizeId } from '../storage/store.js';
 import { sanitizeForDisplay } from '../sanitizer.js';
 import { formatStatusBadge, formatBox, formatUtc } from '../formatter.js';
+import { captureSafeEnvironment } from '../environment.js';
+import { readGitMetadata } from '../git.js';
 import { CliError } from '../errors.js';
 
 /**
@@ -223,12 +225,17 @@ export async function executeTriageVerification({
   const runOutput = (verifyResult.stdout || verifyResult.stderr || '').trim();
   const isSuccess = Boolean(verifyResult.success && verifyResult.exitCode === 0);
   const exitCode = typeof verifyResult.exitCode === 'number' ? verifyResult.exitCode : (isSuccess ? 0 : 1);
+  const safeEnv = captureSafeEnvironment(env);
+  const gitMeta = readGitMetadata(config.rootDir);
 
   const updatedRecord = storage.recordVerificationRun(id, attemptId, {
     command: verifyCmd,
     exitCode,
     durationMs: verifyResult.durationMs,
-    output: runOutput
+    output: runOutput,
+    environment: safeEnv,
+    git: gitMeta,
+    environmentFingerprint: safeEnv.fingerprint
   });
 
   const conflictReport = storage.getContradictionReport(updatedRecord.fingerprint);

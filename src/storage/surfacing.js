@@ -11,6 +11,8 @@ import { analyzeEvidenceConflicts } from './contradiction.js';
  * @property {string|null} change
  * @property {string|null} verifyCmd
  * @property {string} status
+ * @property {boolean} isExternal
+ * @property {boolean} isLocallyVerified
  * @property {string} evidenceQuality
  * @property {string} verifiedAt
  * @property {object} staleness
@@ -31,7 +33,7 @@ import { analyzeEvidenceConflicts } from './contradiction.js';
 /**
  * Evaluates whether historical evidence should be surfaced for the given failure record.
  * Ranks recovery candidates at the individual recovery level and applies strict abstention
- * policies for stale or contradicted evidence.
+ * policies for stale, contradicted, or unverified external evidence.
  *
  * @param {import('./record.js').IncidentRecord|object} currentRecord
  * @param {import('./store.js').StorageEngine} storage
@@ -93,20 +95,45 @@ export function evaluateSurfacing(currentRecord, storage) {
   for (const record of historicalRecords) {
     if (!record) continue;
 
-    const staleness = evaluateStaleness(
-      record,
-      currentRecord.environment,
-      currentRecord.git
-    );
-
     if (Array.isArray(record.recoveryAttempts)) {
       for (const attempt of record.recoveryAttempts) {
+        // Find latest passed verification run via maximum completedAt timestamp
+        let latestVerificationTime = 0;
+        let latestPassedRun = null;
+        if (Array.isArray(attempt.verificationRuns)) {
+          for (const run of attempt.verificationRuns) {
+            if (run.result === 'PASSED' || run.exitCode === 0) {
+              const t = new Date(run.completedAt || run.startedAt || 0).getTime();
+              if (t >= latestVerificationTime) {
+                latestVerificationTime = t;
+                latestPassedRun = run;
+              }
+            }
+          }
+        }
+
         const isVerified =
           attempt.status === 'VERIFIED' ||
-          (Array.isArray(attempt.verificationRuns) &&
-            attempt.verificationRuns.some((run) => run.result === 'PASSED' || run.exitCode === 0));
+          Boolean(latestPassedRun);
 
         if (isVerified) {
+          // If attempt was imported from an external bundle without local verification,
+          // it must never qualify as locally verified evidence.
+          const isLocallyVerified = !attempt.isExternal || Boolean(attempt.locallyVerified);
+
+          // Evaluate staleness against the environment in which verification passed!
+          const verificationEnvRecord = {
+            ...record,
+            environment: latestPassedRun?.environment || record.environment,
+            git: latestPassedRun?.git || record.git
+          };
+
+          const staleness = evaluateStaleness(
+            verificationEnvRecord,
+            currentRecord.environment,
+            currentRecord.git
+          );
+
           // Check if this specific command has a direct contradiction under equivalent environment
           let isContradicted = false;
           if (conflictReport.hasConflicts && conflictReport.classification === 'CONTRADICTED') {
@@ -121,6 +148,10 @@ export function evaluateSurfacing(currentRecord, storage) {
             }
           }
 
+          const verifiedAt = latestVerificationTime > 0
+            ? new Date(latestVerificationTime).toISOString()
+            : (attempt.createdAt || record.endTime || record.startTime);
+
           candidates.push({
             incidentId: record.id,
             attemptId: attempt.id,
@@ -128,8 +159,10 @@ export function evaluateSurfacing(currentRecord, storage) {
             change: attempt.change || null,
             verifyCmd: attempt.verifyCmd || null,
             status: attempt.status,
+            isExternal: Boolean(attempt.isExternal),
+            isLocallyVerified,
             evidenceQuality: attempt.evidenceQuality || 'DIRECT',
-            verifiedAt: attempt.createdAt || record.endTime || record.startTime,
+            verifiedAt,
             staleness,
             isStale: staleness.isStale,
             stalenessReasons: staleness.reasons || [],
@@ -143,6 +176,12 @@ export function evaluateSurfacing(currentRecord, storage) {
         ? record.recoveries[record.recoveries.length - 1]
         : null;
 
+      const staleness = evaluateStaleness(
+        record,
+        currentRecord.environment,
+        currentRecord.git
+      );
+
       candidates.push({
         incidentId: record.id,
         attemptId: 1,
@@ -150,6 +189,8 @@ export function evaluateSurfacing(currentRecord, storage) {
         change: lastRec?.change || null,
         verifyCmd: lastRec?.verifyCmd || record.verification?.command || null,
         status: record.status,
+        isExternal: Boolean(record.isExternal),
+        isLocallyVerified: !record.isExternal,
         evidenceQuality: 'DIRECT',
         verifiedAt: record.verification?.verifiedAt || record.endTime || record.startTime,
         staleness,
@@ -161,14 +202,17 @@ export function evaluateSurfacing(currentRecord, storage) {
   }
 
   // Sort candidates by quality tier:
-  // Tier 1: Compatible & Non-contradicted (best)
-  // Tier 2: Compatible & Contradicted
-  // Tier 3: Stale & Non-contradicted
-  // Tier 4: Stale & Contradicted
+  // Tier 1: Locally Verified & Compatible & Non-contradicted (best)
+  // Tier 2: Locally Verified & Compatible & Contradicted
+  // Tier 3: Locally Verified & Stale & Non-contradicted
+  // Tier 4: Locally Verified & Stale & Contradicted
+  // Tier 5: External Unverified
   // Within tier: newest verified first
   candidates.sort((a, b) => {
-    const scoreA = (a.isStale ? 2 : 0) + (a.isContradicted ? 1 : 0);
-    const scoreB = (b.isStale ? 2 : 0) + (b.isContradicted ? 1 : 0);
+    const extA = a.isLocallyVerified ? 0 : 8;
+    const extB = b.isLocallyVerified ? 0 : 8;
+    const scoreA = extA + (a.isStale ? 2 : 0) + (a.isContradicted ? 1 : 0);
+    const scoreB = extB + (b.isStale ? 2 : 0) + (b.isContradicted ? 1 : 0);
     if (scoreA !== scoreB) {
       return scoreA - scoreB;
     }
@@ -189,7 +233,10 @@ export function evaluateSurfacing(currentRecord, storage) {
   let reason = '';
 
   if (bestCandidate) {
-    if (!bestCandidate.isStale && !bestCandidate.isContradicted) {
+    if (!bestCandidate.isLocallyVerified) {
+      action = 'CAUTION';
+      reason = 'Historical fix available from external bundle (unverified locally)';
+    } else if (!bestCandidate.isStale && !bestCandidate.isContradicted) {
       action = 'SURFACE';
       reason = 'Verified recovery with compatible environment';
     } else if (bestCandidate.isStale) {

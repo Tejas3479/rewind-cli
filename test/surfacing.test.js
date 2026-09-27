@@ -306,4 +306,73 @@ describe('Surfacing Engine & Abstention Policy (src/storage/surfacing.js)', () =
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     }
   });
+
+  test('does not SURFACE unverified external imported recoveries until locally verified', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rewind-surf-ext-'));
+    let storage = null;
+    try {
+      storage = new StorageEngine(tmpDir).init();
+
+      // Create an incident with an imported external recovery attempt
+      const inc = storage.saveRecord({
+        command: 'cargo',
+        args: ['build'],
+        fullCommand: 'cargo build',
+        cwd: tmpDir,
+        durationMs: 120,
+        exitCode: 101,
+        signal: null,
+        success: false,
+        stdout: '',
+        stderr: 'error[E0432]: unresolved import `foo`',
+        environment: { platform: 'linux', nodeVersion: 'v22.0.0', nodeMajor: 22 },
+        git: { isGit: false }
+      });
+
+      storage.addRecoveryAttempt(inc.id, {
+        cause: 'Missing crate foo',
+        change: 'Added foo = "1.0" to Cargo.toml',
+        verifyCmd: 'cargo check',
+        isExternal: true,
+        evidenceQuality: 'EXTERNAL_VERIFIED'
+      });
+
+      const currentFailure = {
+        command: 'cargo',
+        args: ['build'],
+        fullCommand: 'cargo build',
+        cwd: tmpDir,
+        durationMs: 100,
+        exitCode: 101,
+        signal: null,
+        success: false,
+        stdout: '',
+        stderr: 'error[E0432]: unresolved import `foo`',
+        environment: { platform: 'linux', nodeVersion: 'v22.0.0', nodeMajor: 22 },
+        git: { isGit: false }
+      };
+
+      // 1. Before local verification: Must NOT surface external candidate
+      const decisionBefore = storage.getSurfacingDecision(currentFailure);
+      assert.notEqual(decisionBefore.action, 'SURFACE');
+
+      // 2. Perform local verification
+      storage.recordVerificationRun(inc.id, 1, {
+        command: 'cargo check',
+        exitCode: 0,
+        durationMs: 50,
+        output: 'Finished dev profile'
+      });
+
+      // 3. After local verification: Now it surfaces confidently
+      const decisionAfter = storage.getSurfacingDecision(currentFailure);
+      assert.equal(decisionAfter.action, 'SURFACE');
+      assert.ok(decisionAfter.bestCandidate);
+      assert.equal(decisionAfter.bestCandidate.change, 'Added foo = "1.0" to Cargo.toml');
+      assert.equal(decisionAfter.bestCandidate.isLocallyVerified, true);
+    } finally {
+      if (storage) storage.close();
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
 });
