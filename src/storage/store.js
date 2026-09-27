@@ -17,7 +17,7 @@ import {
   writeCheckpoint,
   saveEvidenceArtifact
 } from './journal.js';
-import { projectEventsToRecords, projectEventsToObservations, applyEventToRecordMap } from './projection.js';
+import { projectEventsToRecords, projectEventsToObservations, applyEventToRecordMap, PROJECTION_SCHEMA_VERSION } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { analyzePatternsFromJournal } from './patterns.js';
 import { buildAgentContext } from './context.js';
@@ -115,15 +115,19 @@ export class StorageEngine {
     }
 
     if (isJournalEmpty) {
+      this.setProjectionSchemaVersion(PROJECTION_SCHEMA_VERSION);
       this.initialized = true;
       return this;
     }
 
     if (checkpoint && lastEvent && checkpoint.headSequence === lastEvent.sequence && checkpoint.headChainHash === lastEvent.chainHash) {
-      // Checkpoint is valid and strictly in sync with journal head: load from SQLite
-      if (this.loadFromDatabase()) {
-        this.initialized = true;
-        return this;
+      // Checkpoint is valid and strictly in sync with journal head: load from SQLite only if schema version matches
+      const storedVersion = this.getProjectionSchemaVersion();
+      if (storedVersion === PROJECTION_SCHEMA_VERSION) {
+        if (this.loadFromDatabase()) {
+          this.initialized = true;
+          return this;
+        }
       }
     }
 
@@ -154,6 +158,10 @@ export class StorageEngine {
         id TEXT PRIMARY KEY,
         data TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS observations (
         id TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
@@ -171,22 +179,53 @@ export class StorageEngine {
       CREATE INDEX IF NOT EXISTS idx_obs_created ON observations(createdAt);
     `);
     
-    // Optimize SQLite for single-node local performance
+    // Optimize SQLite for single-node local performance and prevent lock contention
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
       PRAGMA temp_store = MEMORY;
+      PRAGMA busy_timeout = 5000;
     `);
 
     this.insertStmt = this.db.prepare('INSERT OR REPLACE INTO records (id, data) VALUES (?, ?)');
     this.selectAllStmt = this.db.prepare('SELECT id, data FROM records');
     this.deleteAllStmt = this.db.prepare('DELETE FROM records');
 
+    this.getMetaStmt = this.db.prepare('SELECT value FROM metadata WHERE key = ?');
+    this.setMetaStmt = this.db.prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)');
+
     this.insertObsStmt = this.db.prepare('INSERT OR REPLACE INTO observations (id, fingerprint, command, exitCode, stderr, diagnosticType, createdAt, promotedToIncident, ttlExpiry, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     this.selectAllObsStmt = this.db.prepare('SELECT id, data FROM observations');
     this.deleteExpiredObsStmt = this.db.prepare("DELETE FROM observations WHERE ttlExpiry IS NOT NULL AND ttlExpiry <= ? AND (promotedToIncident IS NULL OR promotedToIncident = '')");
     this.updateObsPromotedStmt = this.db.prepare('UPDATE observations SET promotedToIncident = ?, data = ? WHERE id = ?');
     this.deleteAllObsStmt = this.db.prepare('DELETE FROM observations');
+  }
+
+  /**
+   * Retrieves the current projection schema version from SQLite metadata table.
+   *
+   * @returns {number|null}
+   */
+  getProjectionSchemaVersion() {
+    try {
+      if (!this.getMetaStmt) return null;
+      const row = this.getMetaStmt.get('projectionSchemaVersion');
+      return row ? Number.parseInt(row.value, 10) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Sets the projection schema version in the SQLite metadata table.
+   *
+   * @param {number} [version=PROJECTION_SCHEMA_VERSION]
+   */
+  setProjectionSchemaVersion(version = PROJECTION_SCHEMA_VERSION) {
+    try {
+      if (!this.setMetaStmt) return;
+      this.setMetaStmt.run('projectionSchemaVersion', String(version));
+    } catch {}
   }
 
   /**
@@ -285,6 +324,7 @@ export class StorageEngine {
           );
         }
       }
+      this.setProjectionSchemaVersion(PROJECTION_SCHEMA_VERSION);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');

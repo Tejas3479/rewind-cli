@@ -8,7 +8,7 @@ export async function completionsCommand({ context }) {
     throw new CliError('Missing shell argument. Supported shells: bash, zsh, powershell, fish');
   }
 
-  const commands = 'run history show recover triage verify search patterns context doctor verify-integrity rebuild hook export-shared import-shared mcp help version init stats completions clear';
+  const commands = 'run history show recover triage verify search patterns context doctor verify-integrity rebuild hook export-shared import-shared mcp help version init stats completions clear setup event';
   const globalFlags = '--help --version --json --no-color --limit --offset --root';
 
   if (shell === 'bash') {
@@ -30,7 +30,7 @@ _rewind() {
       return 0
       ;;
     hook)
-      COMPREPLY=( $(compgen -W "install uninstall status" -- "$cur") )
+      COMPREPLY=( $(compgen -W "bash zsh powershell fish record" -- "$cur") )
       return 0
       ;;
     completions)
@@ -80,6 +80,8 @@ _rewind() {
     'stats:Show stats'
     'completions:Generate completions'
     'clear:Clear data'
+    'setup:Configure AI agent integrations'
+    'event:Ingest external agent events'
   )
 
   local -a global_flags
@@ -114,7 +116,7 @@ _rewind() {
           ;;
         hook)
           local -a hook_cmds
-          hook_cmds=('install' 'uninstall' 'status')
+          hook_cmds=('bash' 'zsh' 'powershell' 'fish' 'record')
           _describe -t hook_cmds 'hook commands' hook_cmds
           ;;
         completions)
@@ -136,7 +138,7 @@ compdef _rewind rewind
 $scriptblock = {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $commands = @('run', 'history', 'show', 'recover', 'triage', 'verify', 'search', 'patterns', 'context', 'doctor', 'verify-integrity', 'rebuild', 'hook', 'export-shared', 'import-shared', 'mcp', 'help', 'version', 'init', 'stats', 'completions', 'clear')
+    $commands = @('run', 'history', 'show', 'recover', 'triage', 'verify', 'search', 'patterns', 'context', 'doctor', 'verify-integrity', 'rebuild', 'hook', 'export-shared', 'import-shared', 'mcp', 'help', 'version', 'init', 'stats', 'completions', 'clear', 'setup', 'event')
     $globalFlags = @('--help', '--version', '--json', '--no-color', '--limit', '--offset', '--root')
 
     $astElements = $commandAst.CommandElements
@@ -160,7 +162,7 @@ $scriptblock = {
         } catch {}
     }
     elseif ($command -eq 'hook') {
-        @('install', 'uninstall', 'status') | Where-Object { $_ -like "$wordToComplete*" }
+        @('bash', 'zsh', 'powershell', 'fish', 'record') | Where-Object { $_ -like "$wordToComplete*" }
     }
     elseif ($command -eq 'completions') {
         @('bash', 'zsh', 'powershell', 'fish') | Where-Object { $_ -like "$wordToComplete*" }
@@ -210,12 +212,14 @@ complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "init" -d "
 complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "stats" -d "Show stats"
 complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "completions" -d "Generate completions"
 complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "clear" -d "Clear data"
+complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "setup" -d "Configure AI agent integrations"
+complete -c rewind -n "not __fish_seen_subcommand_from $commands" -a "event" -d "Ingest external agent events"
 
 # Dynamic completions for show, recover, verify
 complete -c rewind -n "__fish_seen_subcommand_from show recover verify" -a "(rewind history --json 2>/dev/null | grep -o '\\\"id\\\":[ ]*\\\"[^\\\"]*\\\"' | cut -d'\\\"' -f4 2>/dev/null)"
 
 # Hook subcommands
-complete -c rewind -n "__fish_seen_subcommand_from hook" -a "install uninstall status"
+complete -c rewind -n "__fish_seen_subcommand_from hook" -a "bash zsh powershell fish record"
 
 # Completions subcommands
 complete -c rewind -n "__fish_seen_subcommand_from completions" -a "bash zsh powershell fish"

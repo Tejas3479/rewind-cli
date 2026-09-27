@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { readJournalEvents, writeCheckpoint } from './journal.js';
-import { projectEventsToRecords } from './projection.js';
+import { projectEventsToRecords, PROJECTION_SCHEMA_VERSION } from './projection.js';
 import { verifyLedgerIntegrity } from './integrity.js';
 import { isValidRecord } from './record.js';
 import { redactSecrets } from '../sanitizer.js';
@@ -190,29 +191,88 @@ export function performWriteProbe(tmpDir) {
 
 /**
  * Checks whether an active process holds a ledger lockfile.
+ * Verifies process liveness via signal 0 and checks stale age to prevent deadlocks.
  *
  * @param {string} ledgerDir
- * @returns {{ isLocked: boolean, lockFile: string | null, details: string | null }}
+ * @param {object} [options={}]
+ * @param {number} [options.staleAgeMs=30000]
+ * @returns {{ isLocked: boolean, isStale: boolean, lockFile: string | null, pid: number | null, details: string | null }}
  */
-export function checkActiveLock(ledgerDir) {
+export function checkActiveLock(ledgerDir, options = {}) {
   const lockPath = path.join(ledgerDir, 'journal.lock');
+  const staleAgeMs = typeof options.staleAgeMs === 'number' ? options.staleAgeMs : 30000;
+
   if (fs.existsSync(lockPath)) {
     try {
       const lockStat = fs.statSync(lockPath);
+      let isStale = false;
+      let staleReason = '';
+      let pid = null;
+
+      try {
+        const lockContent = fs.readFileSync(lockPath, 'utf8');
+        const lockInfo = JSON.parse(lockContent);
+        pid = typeof lockInfo.pid === 'number' ? lockInfo.pid : null;
+        const lockAge = Date.now() - new Date(lockInfo.createdAt || lockStat.mtime).getTime();
+
+        if (pid !== null && (lockInfo.hostname === os.hostname() || !lockInfo.hostname)) {
+          let processAlive = true;
+          try {
+            // Signal 0 verifies process existence without signaling
+            process.kill(pid, 0);
+          } catch (killErr) {
+            if (killErr.code === 'ESRCH') {
+              processAlive = false;
+            }
+          }
+
+          if (!processAlive) {
+            isStale = true;
+            staleReason = `PID ${pid} is no longer running`;
+          } else if (lockAge > staleAgeMs) {
+            isStale = true;
+            staleReason = `Lock held by PID ${pid} exceeded stale timeout (${Math.round(lockAge / 1000)}s)`;
+          }
+        } else if (lockAge > staleAgeMs) {
+          isStale = true;
+          staleReason = `Lock exceeded stale timeout (${Math.round(lockAge / 1000)}s)`;
+        }
+      } catch {
+        // Unparseable lock file
+        if (Date.now() - lockStat.mtimeMs > staleAgeMs) {
+          isStale = true;
+          staleReason = `Unreadable lockfile older than ${Math.round(staleAgeMs / 1000)}s`;
+        }
+      }
+
+      if (isStale) {
+        return {
+          isLocked: false,
+          isStale: true,
+          lockFile: lockPath,
+          pid,
+          details: `Stale lockfile detected (${staleReason})`
+        };
+      }
+
       return {
         isLocked: true,
+        isStale: false,
         lockFile: lockPath,
-        details: `Lockfile exists (modified at ${lockStat.mtime.toISOString()})`
+        pid,
+        details: `Lockfile exists${pid ? ` (held by PID ${pid})` : ''} (modified at ${lockStat.mtime.toISOString()})`
       };
     } catch {
       return {
         isLocked: true,
+        isStale: false,
         lockFile: lockPath,
+        pid: null,
         details: 'Lockfile exists and is inaccessible'
       };
     }
   }
-  return { isLocked: false, lockFile: null, details: null };
+  return { isLocked: false, isStale: false, lockFile: null, pid: null, details: null };
 }
 
 /**
@@ -286,13 +346,17 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   healthChecks.push({
     id: 'active_lock',
     name: 'Active Writer Lock',
-    status: lockStatus.isLocked ? 'WARN' : 'PASS',
-    severity: lockStatus.isLocked ? 'warn' : 'info',
-    message: lockStatus.isLocked ? 'Another Rewind process may be actively writing the ledger' : 'No active lock contention detected',
+    status: lockStatus.isLocked ? 'WARN' : (lockStatus.isStale ? 'WARN' : 'PASS'),
+    severity: lockStatus.isLocked ? 'warn' : (lockStatus.isStale ? 'info' : 'info'),
+    message: lockStatus.isLocked
+      ? 'Another Rewind process may be actively writing the ledger'
+      : (lockStatus.isStale ? 'Stale lockfile detected from terminated process' : 'No active lock contention detected'),
     details: lockStatus
   });
   if (lockStatus.isLocked) {
     warnings.push('Active lockfile detected in ledger directory');
+  } else if (lockStatus.isStale) {
+    warnings.push(`Stale lockfile detected: ${lockStatus.details}`);
   }
 
   // ==========================================
@@ -467,6 +531,7 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   if (fs.existsSync(dbPath)) {
     try {
       const db = new DatabaseSync(dbPath);
+      db.exec('PRAGMA busy_timeout = 5000;');
       try {
         const rows = db.prepare('SELECT id, data FROM records').all();
         for (const row of rows) {
@@ -571,6 +636,7 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
     const dbPath = path.join(ledgerDir, 'projection.db');
     if (fs.existsSync(dbPath) && journalEvents.length > 0) {
       const db = new DatabaseSync(dbPath);
+      db.exec('PRAGMA busy_timeout = 5000;');
       try {
         const rows = db.prepare('SELECT id FROM records').all();
         const diskIds = new Set(rows.map(r => r.id));
@@ -723,8 +789,9 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   }
 
   // Determine if Safe Repair is available
+  const canRepairStaleLock = Boolean(lockStatus.isStale && lockStatus.lockFile);
   const canRepairTemps = orphanTempFiles.length > 0;
-  const canRepairProjections = (!consistencyPass || corruptRecordFiles.length > 0) &&
+  const canRepairProjections = (!consistencyPass || corruptRecordFiles.length > 0 || (integrityReport && integrityReport.projections?.driftCount > 0)) &&
     journalValid > 0 &&
     sequenceValid &&
     !hasJournalCorruption;
@@ -732,11 +799,12 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
   const isRepairBlocked = lockStatus.isLocked || overallStatus === 'CORRUPTED' || !writeProbePass;
 
   const repairReasons = [];
+  if (canRepairStaleLock) repairReasons.push(`Remove stale journal lockfile (${lockStatus.details})`);
   if (canRepairTemps) repairReasons.push(`Remove ${orphanTempFiles.length} orphan temporary file(s)`);
   if (canRepairProjections) repairReasons.push('Rebuild derived projection records from authoritative journal');
   if (canFastForwardCheckpoint) repairReasons.push('Fast-forward trusted checkpoint across validated journal extension');
 
-  const repairAvailable = !isRepairBlocked && (canRepairTemps || canRepairProjections || canFastForwardCheckpoint);
+  const repairAvailable = !isRepairBlocked && (canRepairStaleLock || canRepairTemps || canRepairProjections || canFastForwardCheckpoint);
 
   return {
     status: overallStatus,
@@ -752,7 +820,7 @@ export function runDoctorDiagnostics(ledgerDir, config = {}, options = {}) {
     errors,
     repair: {
       available: repairAvailable,
-      recommended: repairAvailable && (canRepairTemps || canRepairProjections || canFastForwardCheckpoint),
+      recommended: repairAvailable && (canRepairStaleLock || canRepairTemps || canRepairProjections || canFastForwardCheckpoint),
       blocked: isRepairBlocked,
       blockReason: isRepairBlocked ? (lockStatus.isLocked ? 'Active lock held by another process' : (overallStatus === 'CORRUPTED' ? 'Authoritative journal corruption requires manual recovery' : 'Storage is not writable')) : null,
       actions: repairReasons
@@ -804,6 +872,17 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
   const plannedActions = [...beforeDiag.repair.actions];
 
   if (!isDryRun) {
+    // 0. Remove Stale Lockfile
+    const lockStatus = checkActiveLock(resolvedLedger);
+    if (lockStatus.isStale && lockStatus.lockFile) {
+      try {
+        fs.unlinkSync(lockStatus.lockFile);
+        actionsTaken.push(`Removed stale journal lockfile (${lockStatus.details})`);
+      } catch {
+        // Ignore if already deleted
+      }
+    }
+
     // 1. Remove Orphan Temporary Files
     const orphanCheck = beforeDiag.healthChecks.find(c => c.id === 'orphan_temp_files');
     if (orphanCheck && orphanCheck.details?.files?.length > 0) {
@@ -838,7 +917,8 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
     // 4. Rebuild Derived Projections in projection.db
     const consistencyCheck = beforeDiag.healthChecks.find(c => c.id === 'storage_consistency');
     const corruptionCheck = beforeDiag.healthChecks.find(c => c.id === 'record_corruption');
-    if (consistencyCheck?.status !== 'PASS' || corruptionCheck?.status !== 'PASS' || (actionsTaken.length === 0 && beforeDiag.repair.available)) {
+    const hasProjectionRepairAction = beforeDiag.repair?.actions?.some(a => a.includes('Rebuild derived projection records'));
+    if (consistencyCheck?.status !== 'PASS' || corruptionCheck?.status !== 'PASS' || hasProjectionRepairAction || (actionsTaken.length === 0 && beforeDiag.repair.available)) {
       const projected = projectEventsToRecords(events);
       
       const dbPath = path.join(resolvedLedger, 'projection.db');
@@ -846,7 +926,8 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
       try {
         db = new DatabaseSync(dbPath);
         db.exec('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
-        db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
+        db.exec('CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY; PRAGMA busy_timeout = 5000;');
         db.exec('BEGIN TRANSACTION');
         const deleteAllStmt = db.prepare('DELETE FROM records');
         deleteAllStmt.run();
@@ -854,6 +935,7 @@ export function executeDoctorRepair(ledgerDir, config = {}, options = {}) {
         for (const [id, record] of projected.entries()) {
           insertStmt.run(id, JSON.stringify(record));
         }
+        db.prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)').run('projectionSchemaVersion', String(PROJECTION_SCHEMA_VERSION));
         db.exec('COMMIT');
       } finally {
         if (db) {

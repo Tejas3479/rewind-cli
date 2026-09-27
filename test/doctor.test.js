@@ -104,6 +104,21 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       assert.strictEqual(lockRes.isLocked, true);
       assert.ok(lockRes.details.includes('Lockfile exists'));
     });
+
+    it('checkActiveLock detects stale lockfile when holding process is dead', () => {
+      fs.mkdirSync(ledgerDir, { recursive: true });
+      const lockPath = path.join(ledgerDir, 'journal.lock');
+      fs.writeFileSync(lockPath, JSON.stringify({
+        pid: 9999999,
+        hostname: os.hostname(),
+        createdAt: new Date().toISOString()
+      }), 'utf8');
+
+      const lockRes = checkActiveLock(ledgerDir);
+      assert.strictEqual(lockRes.isLocked, false);
+      assert.strictEqual(lockRes.isStale, true);
+      assert.ok(lockRes.details.includes('Stale lockfile detected'));
+    });
   });
 
   describe('Comprehensive Diagnostics: 15 Health Checks & Informational Metrics', () => {
@@ -276,6 +291,24 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       assert.strictEqual(report.repair.blocked, true);
       assert.ok(report.repair.blockReason.includes('Active lock'));
     });
+
+    it('detects stale lockfile from terminated PID as WARN without blocking repair', () => {
+      const storage = new StorageEngine(ledgerDir);
+      storage.init();
+
+      fs.writeFileSync(path.join(ledgerDir, 'journal.lock'), JSON.stringify({
+        pid: 9999999,
+        hostname: os.hostname(),
+        createdAt: new Date().toISOString()
+      }), 'utf8');
+
+      const report = runDoctorDiagnostics(ledgerDir, { rootDir: tempDir });
+      const lockCheck = report.healthChecks.find(c => c.id === 'active_lock');
+      assert.strictEqual(lockCheck.status, 'WARN');
+      assert.strictEqual(report.repair.blocked, false);
+      assert.strictEqual(report.repair.available, true);
+      assert.ok(report.repair.actions.some(a => a.includes('Remove stale journal lockfile')));
+    });
   });
 
   describe('Constrained Safe Repair & Idempotency', () => {
@@ -343,6 +376,37 @@ describe('Self-Diagnostics & Safe Maintenance (src/storage/doctor.js & rewind do
       // Verify post-repair diagnostics report HEALTHY
       assert.strictEqual(repairResult.afterStatus, 'HEALTHY');
       assert.strictEqual(repairResult.postRepairIntegrity, 'PASS');
+    });
+
+    it('--repair unlinks stale lockfile cleanly and restores healthy status', () => {
+      const storage = new StorageEngine(ledgerDir);
+      storage.init();
+
+      storage.saveRecord({
+        command: 'npm',
+        args: ['test'],
+        fullCommand: 'npm test',
+        exitCode: 1,
+        durationMs: 40,
+        stderr: 'Test error',
+        stdout: '',
+        cwd: tempDir
+      });
+
+      const lockPath = path.join(ledgerDir, 'journal.lock');
+      fs.writeFileSync(lockPath, JSON.stringify({
+        pid: 9999999,
+        hostname: os.hostname(),
+        createdAt: new Date().toISOString()
+      }), 'utf8');
+
+      assert.strictEqual(fs.existsSync(lockPath), true);
+
+      const repairResult = executeDoctorRepair(ledgerDir, { rootDir: tempDir }, { dryRun: false });
+      assert.strictEqual(repairResult.status, 'COMPLETED');
+      assert.ok(repairResult.actionsTaken.some(a => a.includes('Removed stale journal lockfile')));
+      assert.strictEqual(fs.existsSync(lockPath), false);
+      assert.strictEqual(repairResult.afterStatus, 'HEALTHY');
     });
 
     it('guarantees repair idempotency (running repair on healthy ledger is a no-op)', () => {

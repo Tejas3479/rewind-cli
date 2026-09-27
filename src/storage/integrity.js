@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { canonicalStringify, computeCanonicalDigest } from './canonical.js';
 import { GENESIS_HASH, readJournalEvents, readCheckpoint } from './journal.js';
-import { projectEventsToRecords } from './projection.js';
+import { projectEventsToRecords, PROJECTION_SCHEMA_VERSION } from './projection.js';
 import { normalizeRecordToCurrentSchema } from './record.js';
 
 /**
@@ -262,6 +262,22 @@ export function verifyLedgerIntegrityFromEvents({ events, malformed = [], totalL
     if (fs.existsSync(dbPath)) {
       try {
         db = new DatabaseSync(dbPath);
+        db.exec('PRAGMA busy_timeout = 5000;');
+
+        try {
+          const metaRow = db.prepare("SELECT value FROM metadata WHERE key = 'projectionSchemaVersion'").get();
+          const storedSchemaVersion = metaRow ? Number.parseInt(metaRow.value, 10) : null;
+          if (storedSchemaVersion !== null && storedSchemaVersion !== PROJECTION_SCHEMA_VERSION) {
+            recordError('PROJECTION_SCHEMA_DRIFT', `Projection database schema version (${storedSchemaVersion}) differs from current (${PROJECTION_SCHEMA_VERSION})`, {
+              stored: storedSchemaVersion,
+              expected: PROJECTION_SCHEMA_VERSION
+            });
+            projectionDriftCount++;
+          }
+        } catch {
+          // Table metadata may not exist in older ledgers
+        }
+
         const rows = db.prepare('SELECT id, data FROM records').all();
         
         for (const row of rows) {
