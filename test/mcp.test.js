@@ -187,6 +187,12 @@ test('MCP Server Tests', async (t) => {
     assert.equal(outputs[0].result.protocolVersion, '2026-07-28');
     assert.ok(outputs[0].result.capabilities.tools);
     assert.equal(outputs[0].result.serverInfo.name, 'rewind');
+    assert.equal(outputs[0].result.cacheScope, 'workspace');
+    assert.equal(outputs[0].result.ttlMs, 300000);
+    assert.equal(outputs[0].result.resultType, 'complete');
+    assert.ok(Array.isArray(outputs[0].result.supportedVersions));
+    assert.ok(outputs[0].result.supportedVersions.includes('2026-07-28'));
+    assert.equal(outputs[0].result._meta.serverInfo.name, 'rewind');
   });
 
   await t.test('notifications without id MUST NOT generate any response (JSON-RPC 2.0 Invariant)', async () => {

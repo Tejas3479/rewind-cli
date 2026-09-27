@@ -63,8 +63,7 @@ export async function startMcpServer(storage, options = {}) {
 
 async function handleMessage(msg, storage, options = {}) {
   switch (msg.method) {
-    case 'initialize':
-    case 'server/discover': {
+    case 'initialize': {
       const clientProtocol = msg.params?.protocolVersion;
       const negotiatedVersion = SUPPORTED_PROTOCOLS.includes(clientProtocol)
         ? clientProtocol
@@ -84,6 +83,36 @@ async function handleMessage(msg, storage, options = {}) {
       };
     }
 
+    case 'server/discover': {
+      const clientProtocol = msg.params?.protocolVersion;
+      const negotiatedVersion = SUPPORTED_PROTOCOLS.includes(clientProtocol)
+        ? clientProtocol
+        : SUPPORTED_PROTOCOLS[SUPPORTED_PROTOCOLS.length - 1];
+
+      return {
+        protocolVersion: negotiatedVersion,
+        supportedVersions: [...SUPPORTED_PROTOCOLS],
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false }
+        },
+        serverInfo: {
+          name: SERVER_NAME,
+          version: VERSION
+        },
+        cacheScope: 'workspace',
+        ttlMs: 300000,
+        resultType: 'complete',
+        _meta: {
+          serverInfo: {
+            name: SERVER_NAME,
+            version: VERSION
+          }
+        }
+      };
+    }
+
     case 'notifications/initialized':
     case 'notifications/cancelled':
       return null; // Fire-and-forget notification
@@ -93,7 +122,10 @@ async function handleMessage(msg, storage, options = {}) {
 
     // --- TOOLS ---
     case 'tools/list':
-      return { tools: getToolDefinitions(options.profile || 'full') };
+      return {
+        tools: getToolDefinitions(options.profile || 'full'),
+        resultType: 'complete'
+      };
 
     case 'tools/call': {
       const { name, arguments: args } = msg.params || {};
@@ -109,29 +141,46 @@ async function handleMessage(msg, storage, options = {}) {
 
     // --- RESOURCES ---
     case 'resources/list':
-      return { resources: await getResourceList(storage) };
+      return {
+        resources: await getResourceList(storage),
+        resultType: 'complete'
+      };
 
     case 'resources/templates/list':
-      return { resourceTemplates: getResourceTemplates() };
+      return {
+        resourceTemplates: getResourceTemplates(),
+        resultType: 'complete'
+      };
 
     case 'resources/read': {
       const uri = msg.params?.uri;
       if (!uri) {
         throw new McpError(ErrorCodes.INVALID_PARAMS, 'Missing required parameter: "uri"');
       }
-      return await readResource(uri, storage);
+      const resourceResult = await readResource(uri, storage);
+      return {
+        ...resourceResult,
+        resultType: 'complete'
+      };
     }
 
     // --- PROMPTS ---
     case 'prompts/list':
-      return { prompts: getPromptList() };
+      return {
+        prompts: getPromptList(),
+        resultType: 'complete'
+      };
 
     case 'prompts/get': {
       const { name, arguments: args } = msg.params || {};
       if (!name) {
         throw new McpError(ErrorCodes.INVALID_PARAMS, 'Missing required parameter: "name"');
       }
-      return await getPrompt(name, args || {}, storage);
+      const promptResult = await getPrompt(name, args || {}, storage);
+      return {
+        ...promptResult,
+        resultType: 'complete'
+      };
     }
 
     default:
