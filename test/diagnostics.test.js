@@ -271,18 +271,69 @@ RuntimeError: Request failed due to DB`;
     assert.equal(diag.rawEvidenceSnippet, 'TypeError: Oops');
   });
 
-  test('parses AWS CLI errors', () => {
+  test('parses AWS CLI errors with correct semantic model', () => {
     const stderr = `An error occurred (AccessDenied) when calling the GetObject operation: Access Denied`;
     const diag = parseDiagnostic(stderr);
     
     assert.equal(diag.language, 'aws-cli');
     assert.equal(diag.runtime, 'aws');
-    assert.equal(diag.errorType, 'GetObject');
+    assert.equal(diag.errorType, 'AccessDenied');
     assert.equal(diag.errorCode, 'AccessDenied');
+    assert.equal(diag.operation, 'GetObject');
     assert.equal(diag.message, 'Access Denied');
+    assert.equal(diag.confidence, ConfidenceLevel.EXACTLY_PARSED);
   });
 
-  test('parses Terraform errors', () => {
+  test('parses AWS CLI enhanced format with ResourceNotFoundException', () => {
+    const stderr = `An error occurred (ResourceNotFoundException) when calling the GetFunction operation: Function not found: arn:aws:lambda:us-east-1:123456789012:function:my-function`;
+    const diag = parseDiagnostic(stderr);
+
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.errorType, 'ResourceNotFoundException');
+    assert.equal(diag.errorCode, 'ResourceNotFoundException');
+    assert.equal(diag.operation, 'GetFunction');
+    assert.equal(diag.message, 'Function not found: arn:aws:lambda:us-east-1:123456789012:function:my-function');
+  });
+
+  test('parses AWS CLI JSON error format', () => {
+    const stderr = `{
+  "Error": {
+    "Code": "NoSuchBucket",
+    "Message": "The specified bucket does not exist"
+  }
+}`;
+    const diag = parseDiagnostic(stderr, '', { command: 'aws s3api get-object' });
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.errorType, 'NoSuchBucket');
+    assert.equal(diag.errorCode, 'NoSuchBucket');
+    assert.equal(diag.message, 'The specified bucket does not exist');
+  });
+
+  test('parses AWS CLI-level fatal credential errors', () => {
+    const stderr = 'fatal error: Unable to locate credentials';
+    const diag = parseDiagnostic(stderr, '', { command: 'aws s3 ls' });
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.errorType, 'NoCredentialsError');
+    assert.equal(diag.errorCode, 'NoCredentials');
+    assert.equal(diag.message, 'Unable to locate credentials');
+  });
+
+  test('parses AWS CLI-level fatal profile errors', () => {
+    const stderr = 'fatal error: The config profile (prod) could not be found';
+    const diag = parseDiagnostic(stderr, '', { command: 'aws s3 ls' });
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.errorType, 'ProfileNotFound');
+    assert.equal(diag.errorCode, 'ProfileNotFound');
+  });
+
+  test('parses AWS CLI argument and option validation errors', () => {
+    const stderr = `usage: aws [options] <command> <subcommand> [parameters]\naws: error: argument --region: invalid choice: 'us-invalid-1'`;
+    const diag = parseDiagnostic(stderr, '', { command: 'aws ec2 describe-instances' });
+    assert.equal(diag.language, 'aws-cli');
+    assert.equal(diag.errorType, 'CliArgumentError');
+  });
+
+  test('parses Terraform errors with .tf file reference', () => {
     const stderr = `Error: Reference to undeclared resource
 
   on main.tf line 10, in resource "aws_instance" "web":
@@ -294,6 +345,36 @@ RuntimeError: Request failed due to DB`;
     assert.equal(diag.message, 'Reference to undeclared resource');
     assert.equal(diag.sourceFile, 'main.tf');
     assert.equal(diag.line, 10);
+    assert.equal(diag.confidence, ConfidenceLevel.EXACTLY_PARSED);
+  });
+
+  test('parses Terraform structured box format (Unicode border characters)', () => {
+    const stderr = `╷
+│ Error: Invalid value for input variable
+│ 
+│   on variables.tf line 4:
+│    4:   default = -1
+│ 
+│ The value must be greater than zero.
+╵`;
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'terraform');
+    assert.equal(diag.errorType, 'TerraformError');
+    assert.equal(diag.sourceFile, 'variables.tf');
+    assert.equal(diag.line, 4);
+    assert.equal(diag.confidence, ConfidenceLevel.EXACTLY_PARSED);
+  });
+
+  test('Terraform negative: does NOT hijack JavaScript or Python syntax errors', () => {
+    const jsErr = `Error: unexpected token
+  on index.js line 15`;
+    const diagJs = parseDiagnostic(jsErr, '', { command: 'node server.js' });
+    assert.notEqual(diagJs?.language, 'terraform');
+
+    const pyErr = `Error: failed to compile
+  on app.py line 20`;
+    const diagPy = parseDiagnostic(pyErr, '', { command: 'python main.py' });
+    assert.notEqual(diagPy?.language, 'terraform');
   });
 
   test('parses Kubernetes (kubectl) server errors', () => {
@@ -320,7 +401,17 @@ RuntimeError: Request failed due to DB`;
     assert.notEqual(diagNonKube?.language, 'kubernetes');
   });
 
-  test('parses Java exceptions with stack trace', () => {
+  test('Kubernetes negative: generic tool errors do not match kubernetes without command context', () => {
+    const gitErr = `error: pathspec 'feature-branch' did not match any file(s) known to git`;
+    const diagGit = parseDiagnostic(gitErr, '', { command: 'git checkout feature-branch' });
+    assert.notEqual(diagGit?.language, 'kubernetes');
+
+    const permErr = 'error: permission denied';
+    const diagPerm = parseDiagnostic(permErr);
+    assert.notEqual(diagPerm?.language, 'kubernetes');
+  });
+
+  test('parses Java exceptions with classic stack trace', () => {
     const stderr = `Exception in thread "main" java.lang.NullPointerException: Object is null
 	at com.example.MyClass.myMethod(MyClass.java:42)
 	at com.example.MyClass.main(MyClass.java:10)`;
@@ -333,5 +424,78 @@ RuntimeError: Request failed due to DB`;
     assert.equal(diag.line, 42);
     assert.equal(diag.stackFrames.length, 2);
     assert.equal(diag.stackFrames[0].function, 'com.example.MyClass.myMethod');
+  });
+
+  test('parses modern Java 9+ module-qualified stack frames (java.base/)', () => {
+    const stderr = `Exception in thread "main" java.lang.NullPointerException: Object is null
+	at java.base/java.lang.Thread.run(Thread.java:829)
+	at com.example.MyClass.main(MyClass.java:10)`;
+
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'java');
+    assert.equal(diag.errorType, 'java.lang.NullPointerException');
+    assert.equal(diag.stackFrames.length, 2);
+    assert.equal(diag.stackFrames[0].function, 'java.lang.Thread.run');
+    assert.equal(diag.stackFrames[0].file, 'Thread.java');
+    assert.equal(diag.stackFrames[0].line, 829);
+    assert.equal(diag.sourceFile, 'Thread.java');
+    assert.equal(diag.line, 829);
+  });
+
+  test('parses versioned module Java stack frames (java.base@21/)', () => {
+    const stderr = `Exception in thread "main" java.lang.IllegalStateException: State invalid
+	at java.base@21/java.util.Objects.requireNonNull(Objects.java:233)
+	at com.example.App.start(App.java:15)`;
+
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'java');
+    assert.equal(diag.errorType, 'java.lang.IllegalStateException');
+    assert.equal(diag.stackFrames[0].function, 'java.util.Objects.requireNonNull');
+    assert.equal(diag.stackFrames[0].file, 'Objects.java');
+  });
+
+  test('parses Java chained causes (Caused by:)', () => {
+    const stderr = `java.lang.RuntimeException: Parent failed
+	at com.example.App.main(App.java:10)
+Caused by: java.io.IOException: Disk full
+	at com.example.Disk.write(Disk.java:50)`;
+
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'java');
+    assert.equal(diag.errorType, 'java.lang.RuntimeException');
+    assert.ok(diag.nestedCause);
+    assert.equal(diag.nestedCause.errorType, 'java.io.IOException');
+    assert.equal(diag.nestedCause.message, 'Disk full');
+    assert.equal(diag.nestedCause.sourceFile, 'Disk.java');
+    assert.equal(diag.nestedCause.line, 50);
+  });
+
+  test('parses Java server exceptions without "Exception in thread" header', () => {
+    const stderr = `org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'dataSource'
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:325)
+	at com.example.App.main(App.java:12)`;
+
+    const diag = parseDiagnostic(stderr);
+    assert.equal(diag.language, 'java');
+    assert.equal(diag.errorType, 'org.springframework.beans.factory.BeanCreationException');
+    assert.equal(diag.sourceFile, 'AbstractBeanFactory.java');
+    assert.equal(diag.line, 325);
+  });
+
+  test('Cross-Parser Collision Matrix: ambiguous outputs abstain to UNKNOWN', () => {
+    const ambiguous = 'error: operation failed unexpectedly';
+    const diag = parseDiagnostic(ambiguous);
+    assert.equal(diag.language, null);
+    assert.equal(diag.confidence, ConfidenceLevel.UNKNOWN);
+  });
+
+  test('Cross-Parser Collision Matrix: context disambiguates generic outputs safely', () => {
+    const text = 'Error: Failed to locate configuration';
+    
+    const diagTf = parseDiagnostic(text, '', { command: 'terraform plan' });
+    assert.equal(diagTf.language, 'terraform');
+
+    const diagNode = parseDiagnostic(text, '', { command: 'node test.js' });
+    assert.equal(diagNode.language, 'node');
   });
 });
