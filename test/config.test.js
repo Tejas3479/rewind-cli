@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import { resolveConfig, findProjectRoot, DEFAULT_LEDGER_DIR, DEFAULT_SETTINGS, VERSION } from '../src/config.js';
 
 describe('Config & Root Discovery (src/config.js)', () => {
-  test('VERSION is exported as 1.0.0', () => {
-    assert.equal(VERSION, '1.0.0');
+  test('VERSION is exported as 1.0.1', () => {
+    assert.equal(VERSION, '1.0.1');
   });
 
   test('DEFAULT_SETTINGS contains required defaults', () => {

@@ -14,9 +14,9 @@ function loadVersion() {
   try {
     const pkgPath = path.resolve(__dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    return pkg.version || '1.0.0';
+    return pkg.version || '1.0.1';
   } catch {
-    return '1.0.0';
+    return '1.0.1';
   }
 }
 

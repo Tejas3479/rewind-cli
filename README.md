@@ -89,13 +89,12 @@ In your project repository, run:
 rewind setup
 ```
 This automatically:
-- Initializes `.rewind/` with an append-only JSONL journal and SQLite projection.
-- Generates `.cursor/rules/rewind.mdc` and `.cursor/mcp.json` for Cursor.
-- Generates `GEMINI.md` for Gemini CLI.
-- Generates `AGENTS.md` for Codex and other agent harnesses.
-- Configures non-blocking failure capture hooks.
+- Inspects your workspace and detects active coding agents (**Cursor**, **Gemini CLI**, **Codex CLI**).
+- Configures ambient post-tool failure hooks (`.cursor/hooks.json`, `.gemini/settings.json`, `.codex/hooks.json`) and root-safe bridge scripts.
+- Installs zero-crash fail-open handlers that output native envelopes without prompt or terminal clutter.
+- Supports interactive confirmation with `--yes` (`-y`) flag for scripted automation.
 
-*(To preview changes without writing files, run `rewind setup --dry-run`)*.
+*(To preview configuration changes without writing any files, run `rewind setup --dry-run`)*.
 
 ---
 
